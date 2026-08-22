@@ -204,8 +204,10 @@ MacTray.app/Contents/MacOS/MacTray --preferences</code></pre>
 
 <script>
   (function () {
+    var asked = new URLSearchParams(location.search).get("lang");
     var saved = localStorage.getItem("mactray-lang");
-    var lang = saved || ((navigator.language || "en").toLowerCase().indexOf("pt") === 0 ? "pt" : "en");
+    var lang = (asked === "pt" || asked === "en") ? asked
+      : saved || ((navigator.language || "en").toLowerCase().indexOf("pt") === 0 ? "pt" : "en");
     apply(lang);
 
     document.querySelectorAll("[data-set-lang]").forEach(function (button) {
