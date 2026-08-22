@@ -30,18 +30,20 @@ for the panel: with it off, the arrow still collapses and expands the bar, no pe
 involved. The panel asks for it the first time, and explains why before the system
 dialog shows up.
 
-Clicking an icon in the panel opens its menu in one of two ways, and one case degrades:
+Clicking an icon in the panel does what clicking it on the bar would do — including
+for icons parked under the notch, which no mouse click can reach.
 
-| Situation | What happens |
-| --- | --- |
-| The item accepts the accessibility press | its menu opens where the icon is, notch or not |
-| It refuses, but the icon lands in the clickable part of the bar | a synthetic click on its real coordinates opens the menu |
-| It refuses *and* the icon lands under the notch | MacTray brings the owning app to the front instead |
+The first accessibility press an app receives usually comes back "action not
+supported"; the next one works. Apps build their accessibility tree when something
+first asks, and the action shows up a moment later. MacTray retries for about eight
+tenths of a second, which is what made Ollama, Docker and ChatGPT open from the panel
+at all. If every attempt fails and the icon happens to be in the clickable part of the
+bar, a synthetic click takes over; if it fails under the notch, the owning app is
+brought to the front instead.
 
-The third row is a platform limit, not a bug to fix later: a click under the notch
-reaches nothing, and an app's status item cannot be moved by another app. Which apps
-refuse the press is up to each app — Figma, Claude and Amphetamine accept it here,
-Ollama does not.
+Note that the press is a *left* click. Apps that use the left click for an action
+rather than a menu behave accordingly — Shottr takes a screenshot, exactly as it would
+if you clicked it on the bar.
 
 Three implementation notes, all measured rather than assumed:
 

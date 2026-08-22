@@ -32,7 +32,11 @@
     "fora" continua sendo decidido com ⌘ arrastando na barra.
 - [x] *"usa o computer use pra ver c ta funcionando, ate agr nada"* — testado com clique
   real na seta pelo computer use: a barra expandiu e os ícones voltaram.
-- [ ] Falta conferir na tela: a bandeja aberta na barra dele. O Mac ficou bloqueado a
+- [x] *"ele fecha quando n esta nos primeiros da fila, no caso, se começar a ultrapassar
+  o notch"* — era a primeira tentativa de acionamento voltando "ação não suportada", o
+  que jogava no plano B (abrir o app inteiro). Insistindo por ~0,8s, Ollama, Docker e
+  ChatGPT abrem o menu normalmente. Conferido na tela dele em 22/08/2026.
+- [x] Conferido na tela: a bandeja aberta na barra dele. O Mac ficou bloqueado a
   noite toda (`IOConsoleLocked = Yes`), e com a sessão trancada não dá para capturar tela
   nem clicar. O que deu para provar sem tela: a leitura da barra (16 ícones, 13 fora),
   o desenho da bandeja (PNG renderizado), a janela abrindo no lugar certo (topo colado

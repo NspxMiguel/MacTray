@@ -94,10 +94,16 @@ enum ItemActivator {
             ?? fresh.first { $0.label == stale.label }
             ?? stale
 
-        // Alguns apps declaram a ação e a recusam na hora (AXPress responde
-        // "não suportada"); por isso o clique de mouse continua como reserva.
-        if AXUIElementPerformAction(item.element, kAXPressAction as CFString) == .success {
-            return .pressed
+        // A primeira tentativa costuma voltar "ação não suportada" e a seguinte funciona:
+        // o app dono só monta a árvore de acessibilidade quando alguém pergunta, e a ação
+        // aparece um instante depois. Medido no Ollama — 1 erro, depois quatro acertos
+        // seguidos. Por isso insiste antes de desistir; parar no primeiro acerto importa,
+        // porque cada acionamento é um liga/desliga do menu.
+        for attempt in 0..<6 {
+            if AXUIElementPerformAction(item.element, kAXPressAction as CFString) == .success {
+                return .pressed
+            }
+            if attempt < 5 { usleep(130_000) }
         }
 
         let frame = MenuBarScanner.frameOf(item.element)
