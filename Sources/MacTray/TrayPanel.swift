@@ -36,7 +36,10 @@ final class TrayPanel: NSObject {
         onRestoreRequest = restore
 
         let screen = anchor?.window?.screen
-        let model = TrayPanelModel(items: MenuBarScanner.cached, screen: screen)
+        // Na primeira vez não há retrato nenhum: aí vale esperar a leitura (menos de um
+        // segundo) em vez de abrir uma caixa vazia.
+        let known = MenuBarScanner.cached.isEmpty ? MenuBarScanner.scan() : MenuBarScanner.cached
+        let model = TrayPanelModel(items: known, screen: screen)
         self.model = model
         // Abre na hora com o que já se sabe e corrige assim que a leitura nova chega:
         // segurar o clique por um segundo para ler a barra inteira era pior.
