@@ -86,6 +86,16 @@ Two details make the difference between working and not working on a full bar:
 ## Install
 
 ```bash
+brew install --cask nspxmiguel/tap/mactray
+```
+
+The cask downloads the source and builds it on your machine, so the binary never
+carries a quarantine attribute and Gatekeeper stays quiet. It installs the Xcode
+Command Line Tools first if they are missing.
+
+Building by hand works too, and is the path to take when changing the code:
+
+```bash
 git clone https://github.com/NspxMiguel/MacTray.git
 cd MacTray
 ./build.sh
