@@ -4,6 +4,10 @@ import Carbon.HIToolbox
 /// Estado das preferencias exposto para a interface. Escreve no UserDefaults e avisa
 /// o TrayController, que e quem sabe redesenhar a barra.
 final class PrefsModel: ObservableObject {
+    @Published var clickOpensPanel: Bool = Defaults.clickOpensPanel {
+        didSet { Defaults.clickOpensPanel = clickOpensPanel; notify() }
+    }
+    @Published var accessibilityGranted: Bool = MenuBarScanner.isAuthorized
     @Published var launchAtLogin: Bool = LoginItem.isEnabled {
         didSet { LoginItem.set(launchAtLogin) }
     }
@@ -37,6 +41,22 @@ final class PrefsModel: ObservableObject {
         Defaults.hotKeyModifiers = carbonModifiers
         hotKeyDescription = HotKeyManager.describe(keyCode: keyCode, carbonModifiers: carbonModifiers)
         HotKeyManager.shared.reload()
+    }
+
+    /// A autorização não chega por retorno de função: o usuário marca a caixa nos Ajustes
+    /// e o app precisa perceber sozinho.
+    func refreshAccessibility() {
+        accessibilityGranted = MenuBarScanner.isAuthorized
+    }
+
+    func requestAccessibility() {
+        MenuBarScanner.requestAuthorization()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in self?.refreshAccessibility() }
+    }
+
+    func openAccessibilitySettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+        NSWorkspace.shared.open(url)
     }
 
     func clearHotKey() {
@@ -73,6 +93,8 @@ struct PreferencesView: View {
         }
         .frame(width: 460)
         .padding(.top, 8)
+        .onReceive(NotificationCenter.default.publisher(
+            for: NSApplication.didBecomeActiveNotification)) { _ in model.refreshAccessibility() }
         .onChange(of: tab) { _, newValue in PrefsTab.remembered = newValue }
     }
 
@@ -80,6 +102,34 @@ struct PreferencesView: View {
 
     private var general: some View {
         Form {
+            Section {
+                Toggle(l10n("prefs.clickOpensPanel"), isOn: $model.clickOpensPanel)
+            } footer: {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(l10n("prefs.clickOpensPanel.help"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if model.clickOpensPanel, !model.accessibilityGranted {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(l10n("prefs.accessibility.missing"))
+                                    .font(.caption)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                HStack {
+                                    Button(l10n("prefs.accessibility.grant")) { model.requestAccessibility() }
+                                    Button(l10n("prefs.accessibility.open")) { model.openAccessibilitySettings() }
+                                }
+                            }
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+            }
+
             Section {
                 Toggle(l10n("prefs.launchAtLogin"), isOn: $model.launchAtLogin)
                 Toggle(l10n("prefs.hideOnOutsideClick"), isOn: $model.hideOnOutsideClick)

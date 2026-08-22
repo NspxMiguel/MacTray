@@ -11,6 +11,26 @@ if let wanted = LoginItemArgument.fromArguments(CommandLine.arguments) {
     exit(ok ? 0 : 1)
 }
 
+// `--list` responde a pergunta "o app esta enxergando meus icones?" sem precisar abrir
+// nada; `--render-panel` desenha a bandeja num PNG, para conferir o visual sem depender
+// da barra de menus estar acessivel.
+if CommandLine.arguments.contains("--list") {
+    MainActor.assumeIsolated { Diagnostics.printItems() }
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--open"),
+   index + 1 < CommandLine.arguments.count {
+    MainActor.assumeIsolated { Diagnostics.openItem(named: CommandLine.arguments[index + 1]) }
+    exit(0)
+}
+
+if let index = CommandLine.arguments.firstIndex(of: "--render-panel"),
+   index + 1 < CommandLine.arguments.count {
+    MainActor.assumeIsolated { Diagnostics.renderPanel(to: CommandLine.arguments[index + 1]) }
+    exit(0)
+}
+
 if let command = RemoteCommand.fromArguments(CommandLine.arguments) {
     RemoteCommand.send(command)
     exit(0)

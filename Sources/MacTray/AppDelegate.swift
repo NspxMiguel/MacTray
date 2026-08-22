@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         observeRemoteCommands(tray: tray)
 
+        // Deixa o retrato da barra pronto antes do primeiro clique na seta.
+        MenuBarScanner.refresh()
+
         if !Defaults.didShowOnboarding {
             Defaults.didShowOnboarding = true
             showOnboarding()
@@ -34,6 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case .show: tray.expand()
                 case .hide: tray.collapse()
                 case .showAll: tray.revealAll()
+                case .panel: tray.togglePanel()
                 case .preferences: PreferencesWindowController.shared.show()
                 }
             }

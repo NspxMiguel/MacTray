@@ -129,6 +129,14 @@
     </figcaption>
   </figure>
 
+  <figure>
+    <img src="screenshot-tray.png" alt="A bandeja do MacTray aberta, com os ícones ocultos">
+    <figcaption>
+      <span data-pt>A bandeja: clique na seta e os ícones que não cabem na barra aparecem aqui, com nome e ícone do app. Clicar num deles abre o menu daquele app.</span>
+      <span data-en>The tray: click the arrow and the icons that do not fit the bar show up here, named. Clicking one opens that app's menu.</span>
+    </figcaption>
+  </figure>
+
   <h2><span data-pt>Por que isso existe</span><span data-en>Why it exists</span></h2>
   <p data-pt>
     O macOS não tem área de excesso na barra de menus. Quando a barra enche — e num
@@ -147,8 +155,8 @@
   <div class="grid">
     <div class="card">
       <h3><span data-pt>Clique na seta</span><span data-en>Click the arrow</span></h3>
-      <p><span data-pt>Mostra e esconde tudo o que está recolhido.</span>
-         <span data-en>Shows and hides everything that is collapsed.</span></p>
+      <p><span data-pt>Abre a bandeja com os ícones ocultos. Clique de novo para fechar.</span>
+         <span data-en>Opens the tray with the hidden icons. Click again to close.</span></p>
     </div>
     <div class="card">
       <h3><kbd>⌘</kbd> <span data-pt>arraste</span><span data-en>drag</span></h3>
@@ -177,16 +185,19 @@ cd MacTray
 ./build.sh
 cp -R build/MacTray.app /Applications/</code></pre>
 
-  <h2><span data-pt>Sem permissões</span><span data-en>No permissions</span></h2>
+  <h2><span data-pt>Uma permissão, só para a bandeja</span><span data-en>One permission, only for the tray</span></h2>
   <p data-pt>
-    Nenhuma. Sem Acessibilidade, sem Gravação de Tela. O atalho global usa o
-    <code>RegisterEventHotKey</code> do Carbon e a detecção de clique fora usa monitor
-    global de <em>mouse</em> — nenhum dos dois pede autorização ao sistema.
+    A bandeja precisa da <strong>Acessibilidade</strong>: é o único jeito que o macOS
+    dá para um app enxergar os ícones dos outros e abrir o menu deles. Nada além disso —
+    sem Gravação de Tela em momento nenhum. Desligue a bandeja nas Preferências e o
+    MacTray não pede autorização nenhuma: a seta continua recolhendo e devolvendo os
+    ícones para a própria barra.
   </p>
   <p data-en>
-    None. No Accessibility, no Screen Recording. The global shortcut uses Carbon's
-    <code>RegisterEventHotKey</code> and outside-click detection uses a global
-    <em>mouse</em> monitor — neither triggers a system prompt.
+    The tray needs <strong>Accessibility</strong>: it is the only way macOS lets an app
+    see other apps' icons and open their menus. Nothing beyond that — no Screen Recording
+    at any point. Turn the tray off in Preferences and MacTray asks for nothing: the arrow
+    still collapses and restores the icons onto the bar itself.
   </p>
 
   <h2><span data-pt>Linha de comando</span><span data-en>Command line</span></h2>

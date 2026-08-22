@@ -12,6 +12,32 @@ MacBook the notch eats most of it — new status icons are silently dropped: the
 laid out to the left of everything else, which is exactly the region the notch and the
 app menus cover. Nothing warns the user; the icon simply never shows up.
 
+## The tray
+
+Clicking the arrow opens a panel under it with the icons that are not on the bar —
+the Windows tray. Each one shows the app it belongs to; clicking it opens that app's
+menu, wherever the icon actually sits.
+
+![The tray panel](docs/screenshot-tray.png)
+
+This is what a full bar on a MacBook really needs. Expanding back onto the bar only
+helps while there is room: past that, macOS lays the extra icons out under the notch,
+where they are neither visible nor clickable — a synthetic click there hits nothing.
+The panel does not care about that geometry.
+
+Reading other apps' menu bar items requires the **Accessibility** permission, and only
+for the panel: with it off, the arrow still collapses and expands the bar, no permission
+involved. The panel asks for it the first time, and explains why before the system
+dialog shows up.
+
+Two implementation notes, both measured rather than assumed:
+
+- every icon on the bar belongs to the Control Center process as far as the window
+  server is concerned, so `CGWindowList` cannot tell you who owns what. The
+  `AXExtrasMenuBar` attribute of each running app can;
+- those items expose no `AXPress` action (`kAXErrorActionUnsupported`), so the panel
+  opens a menu by clicking the icon's real coordinates.
+
 ## How it works
 
 There is no public API to hide another app's status item, so MacTray occupies the
@@ -62,6 +88,7 @@ signed ad-hoc — no Apple Developer account needed.
 
 | Setting | Default |
 | --- | --- |
+| Clicking the arrow opens the tray | on |
 | Open at login | off |
 | Hide when clicking anywhere else | off |
 | Auto-hide after N seconds | off, 10 s |
@@ -84,6 +111,15 @@ plain script — it talks to the running instance and exits:
 /Applications/MacTray.app/Contents/MacOS/MacTray --preferences
 ```
 
+`--open <app>` opens the menu of a hidden icon by name, and `--list` prints what
+MacTray is reading from the bar (useful when an icon does not show up in the panel):
+
+```bash
+/Applications/MacTray.app/Contents/MacOS/MacTray --panel
+/Applications/MacTray.app/Contents/MacOS/MacTray --open Docker
+/Applications/MacTray.app/Contents/MacOS/MacTray --list
+```
+
 `--login-item on|off` runs in the calling process instead of signalling the running
 instance, because `SMAppService` registers the bundle of whoever calls it — that is the
 path macOS opens at login:
@@ -104,15 +140,22 @@ MACTRAY_LANG=pt open /Applications/MacTray.app
 
 ## Permissions
 
-None. No Accessibility, no Screen Recording. The global shortcut uses Carbon's
-`RegisterEventHotKey` and the outside-click detection uses a global *mouse* monitor —
-neither requires a TCC prompt.
+The tray panel needs **Accessibility** — it is the only way macOS lets an app read
+other apps' menu bar items and open their menus. Nothing else does: the global
+shortcut uses Carbon's `RegisterEventHotKey`, the outside-click detection uses a
+global *mouse* monitor, and hiding icons is just status item geometry. No Screen
+Recording at any point.
+
+Turn the panel off in Preferences and MacTray asks for nothing at all.
 
 ## Build layout
 
 | Path | What |
 | --- | --- |
 | `Sources/MacTray/TrayController.swift` | the status items and the hide/show logic |
+| `Sources/MacTray/TrayPanel.swift` | the tray panel |
+| `Sources/MacTray/MenuBarScanner.swift` | reads the bar through Accessibility |
+| `Sources/MacTray/ItemActivator.swift` | opens a hidden icon's menu |
 | `Sources/MacTray/PreferencesView.swift` | SwiftUI preferences |
 | `Sources/MacTray/L10n.swift` | pt/en strings |
 | `Sources/MacTray/HotKey.swift` | Carbon global shortcut |

@@ -44,6 +44,7 @@ enum Defaults {
             Key.hotKeyCode: -1,
             Key.hotKeyModifiers: 0,
             Key.didShowOnboarding: false,
+            Key.clickOpensPanel: true,
         ])
     }
 
@@ -58,6 +59,7 @@ enum Defaults {
         static let hotKeyCode = "hotKeyCode"
         static let hotKeyModifiers = "hotKeyModifiers"
         static let didShowOnboarding = "didShowOnboarding"
+        static let clickOpensPanel = "clickOpensPanel"
     }
 
     static var autoHideEnabled: Bool {
@@ -103,6 +105,11 @@ enum Defaults {
     static var hotKeyModifiers: Int {
         get { d.integer(forKey: Key.hotKeyModifiers) }
         set { d.set(newValue, forKey: Key.hotKeyModifiers) }
+    }
+
+    static var clickOpensPanel: Bool {
+        get { d.bool(forKey: Key.clickOpensPanel) }
+        set { d.set(newValue, forKey: Key.clickOpensPanel) }
     }
 
     static var didShowOnboarding: Bool {

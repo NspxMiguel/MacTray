@@ -187,6 +187,7 @@ final class TrayController: NSObject {
     }
 
     func collapse() {
+        TrayPanel.shared.close()
         guard state != .collapsed else { return }
         state = .collapsed
     }
@@ -200,8 +201,49 @@ final class TrayController: NSObject {
             showMenu(for: sender)
         } else if event?.modifierFlags.contains(.option) == true, Defaults.alwaysHiddenEnabled {
             revealAll()
+        } else if Defaults.clickOpensPanel {
+            togglePanel()
         } else {
             toggle()
+        }
+    }
+
+    /// Abre a bandeja. Sem a permissão de Acessibilidade não há como ler os ícones dos
+    /// outros apps, então nessa primeira vez o pedido sobe e o clique faz o de sempre.
+    func togglePanel() {
+        guard MenuBarScanner.isAuthorized else {
+            explainAuthorization()
+            toggle()
+            return
+        }
+        if TrayPanel.shared.isOpen {
+            TrayPanel.shared.close()
+        } else {
+            TrayPanel.shared.open(anchor: toggleItem.button) { [weak self] in
+                self?.state = .expanded
+            }
+        }
+    }
+
+    /// O diálogo do sistema sozinho não diz por que um app de barra de menus quer
+    /// Acessibilidade; sem explicação, a resposta natural é negar.
+    private var didExplainAuthorization = false
+
+    private func explainAuthorization() {
+        guard !didExplainAuthorization else { return }
+        didExplainAuthorization = true
+
+        let l = L10n.shared
+        let alert = NSAlert()
+        alert.messageText = l("auth.title")
+        alert.informativeText = l("auth.body")
+        alert.addButton(withTitle: l("auth.grant"))
+        alert.addButton(withTitle: l("auth.useBar"))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            MenuBarScanner.requestAuthorization()
+        } else {
+            Defaults.clickOpensPanel = false
         }
     }
 

@@ -6,6 +6,7 @@ enum RemoteCommand: String, CaseIterable {
     case show
     case hide
     case showAll = "show-all"
+    case panel
     case preferences
 
     var notificationName: Notification.Name {

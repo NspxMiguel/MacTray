@@ -15,3 +15,12 @@
     Figma, Claude, Bluetooth, player, cama e Wi-Fi. Menu do botão direito, atalho
     global ⌥⌘T, auto-esconder por tempo e as três abas de preferências conferidos em
     tela, em português.
+
+## 21/08/2026 — segunda rodada
+
+- [ ] *"tipo oq era o ice, soq o ice ficou horrivel nos novos macos, cheio de bug. ai tem
+  a opção de ocultar tudo, ou o tray igual do windows, q alguns ficam fora alguns dentro"*
+- [ ] *"resumidamente, isso q eu queria"* — com um desenho por cima da barra: a seta `<`
+  abre uma **caixa** com os apps ocultos dentro (balão "apps"), e o que fica na barra é
+  "fixed apps". Ou seja: painel flutuante como o do Windows, não só empurrar a barra.
+- [ ] *"usa o computer use pra ver c ta funcionando, ate agr nada"*
