@@ -122,7 +122,7 @@
   </header>
 
   <figure>
-    <img src="screenshot-bar.png" alt="MacTray fechado e aberto na barra de menus">
+    <img id="figure" src="screenshot-bar-pt.png" alt="MacTray fechado e aberto na barra de menus">
     <figcaption>
       <span data-pt>Fechado, sobra uma seta. Um clique e os ícones voltam.</span>
       <span data-en>Collapsed, one arrow is left. One click and the icons come back.</span>
@@ -224,6 +224,12 @@ MacTray.app/Contents/MacOS/MacTray --preferences</code></pre>
       document.querySelectorAll("[data-set-lang]").forEach(function (button) {
         button.setAttribute("aria-pressed", String(button.getAttribute("data-set-lang") === value));
       });
+      // A figura tem texto dentro dela, entao tambem troca de idioma.
+      var figure = document.getElementById("figure");
+      figure.src = value === "pt" ? "screenshot-bar-pt.png" : "screenshot-bar.png";
+      figure.alt = value === "pt"
+        ? "MacTray fechado e aberto na barra de menus"
+        : "MacTray collapsed and expanded on the menu bar";
     }
   })();
 </script>
