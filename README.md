@@ -84,6 +84,14 @@ plain script — it talks to the running instance and exits:
 /Applications/MacTray.app/Contents/MacOS/MacTray --preferences
 ```
 
+`--login-item on|off` runs in the calling process instead of signalling the running
+instance, because `SMAppService` registers the bundle of whoever calls it — that is the
+path macOS opens at login:
+
+```bash
+/Applications/MacTray.app/Contents/MacOS/MacTray --login-item on
+```
+
 ### Language
 
 Portuguese and English ship in the app. The system language decides the default, the

@@ -31,3 +31,17 @@ enum RemoteCommand: String, CaseIterable {
         "MacTray --" + RemoteCommand.allCases.map(\.rawValue).joined(separator: " | --")
     }
 }
+
+
+/// `--login-item on` / `--login-item off`.
+enum LoginItemArgument {
+    static func fromArguments(_ arguments: [String]) -> Bool? {
+        guard let index = arguments.firstIndex(of: "--login-item"),
+              index + 1 < arguments.count else { return nil }
+        switch arguments[index + 1].lowercased() {
+        case "on", "true", "1", "yes": return true
+        case "off", "false", "0", "no": return false
+        default: return nil
+        }
+    }
+}
