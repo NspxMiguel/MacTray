@@ -30,13 +30,31 @@ for the panel: with it off, the arrow still collapses and expands the bar, no pe
 involved. The panel asks for it the first time, and explains why before the system
 dialog shows up.
 
-Two implementation notes, both measured rather than assumed:
+Clicking an icon in the panel opens its menu in one of two ways, and one case degrades:
+
+| Situation | What happens |
+| --- | --- |
+| The item accepts the accessibility press | its menu opens where the icon is, notch or not |
+| It refuses, but the icon lands in the clickable part of the bar | a synthetic click on its real coordinates opens the menu |
+| It refuses *and* the icon lands under the notch | MacTray brings the owning app to the front instead |
+
+The third row is a platform limit, not a bug to fix later: a click under the notch
+reaches nothing, and an app's status item cannot be moved by another app. Which apps
+refuse the press is up to each app — Figma, Claude and Amphetamine accept it here,
+Ollama does not.
+
+Three implementation notes, all measured rather than assumed:
 
 - every icon on the bar belongs to the Control Center process as far as the window
   server is concerned, so `CGWindowList` cannot tell you who owns what. The
   `AXExtrasMenuBar` attribute of each running app can;
-- those items expose no `AXPress` action (`kAXErrorActionUnsupported`), so the panel
-  opens a menu by clicking the icon's real coordinates.
+- an item only accepts the press once the bar has laid it out, so the bar is expanded
+  first and the panel waits for the icon to actually appear before acting on it. The
+  accessibility element captured while the bar was collapsed goes stale across that
+  relayout and has to be read again, or the press fails;
+- the bar is only restored *after* the menu closes — collapsing while a menu is open
+  takes its owner out of the layout and shuts the menu. `AXSelected` on the item is the
+  signal for that: there is no window to observe.
 
 ## How it works
 

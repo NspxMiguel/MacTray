@@ -152,6 +152,33 @@ enum MenuBarScanner {
         return found.sorted { $0.frame.minX < $1.frame.minX }
     }
 
+    /// Relê os ícones de um app só. Quando a barra faz relayout, o macOS troca os
+    /// elementos de acessibilidade: o que estava guardado ainda responde posição, mas
+    /// recusa a ação de clique. Antes de acionar, vale pegar o elemento novo.
+    static func items(forPID pid: pid_t) -> [MenuBarItem] {
+        guard isAuthorized,
+              let app = NSRunningApplication(processIdentifier: pid) else { return [] }
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, 0.3)
+        guard let extras = copy(appElement, "AXExtrasMenuBar"),
+              let children = copy(extras as! AXUIElement, kAXChildrenAttribute as String) as? [AXUIElement]
+        else { return [] }
+
+        return children.enumerated().compactMap { position, item in
+            let frame = frameOf(item)
+            guard frame.width > 0 else { return nil }
+            let label = (copy(item, kAXDescriptionAttribute as String) as? String)
+                ?? (copy(item, kAXTitleAttribute as String) as? String) ?? ""
+            return MenuBarItem(
+                id: "\(pid)-\(position)",
+                ownerPID: pid,
+                ownerName: app.localizedName ?? "?",
+                label: label.trimmingCharacters(in: .whitespacesAndNewlines),
+                frame: frame,
+                element: item)
+        }
+    }
+
     /// Área da barra onde um clique realmente chega no ícone: à direita do notch.
     /// Fora dela o macOS desenha o recorte da câmera ou os menus do app, e o clique
     /// não encontra ninguém — foi medido, não suposto.

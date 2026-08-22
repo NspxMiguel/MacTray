@@ -4,6 +4,13 @@ import SwiftUI
 /// A caixa que abre embaixo da seta, com os ícones que a barra não mostra — a bandeja
 /// do Windows. Só ela resolve o caso do MacBook: quando os ícones não cabem, o macOS
 /// os empurra para trás do notch, onde não dá nem para ver nem para clicar.
+/// Um NSPanel sem borda não vira janela-chave por padrão, e sem isso os botões da
+/// bandeja não recebem o clique: a caixa fechava e nada acontecia. `.nonactivatingPanel`
+/// garante que virar chave não traz o app inteiro para a frente.
+final class TrayPanelWindow: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 final class TrayPanel: NSObject {
 
     static let shared = TrayPanel()
@@ -54,9 +61,9 @@ final class TrayPanel: NSObject {
         hosting.layoutSubtreeIfNeeded()
         hosting.frame.size = hosting.fittingSize
 
-        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
-                            styleMask: [.borderless, .nonactivatingPanel],
-                            backing: .buffered, defer: false)
+        let panel = TrayPanelWindow(contentRect: NSRect(origin: .zero, size: hosting.fittingSize),
+                                    styleMask: [.borderless, .nonactivatingPanel],
+                                    backing: .buffered, defer: false)
         panel.contentView = hosting
         panel.isOpaque = false
         panel.backgroundColor = .clear
@@ -70,6 +77,7 @@ final class TrayPanel: NSObject {
         panel.setContentSize(hosting.fittingSize)
         position(panel, below: anchor)
         panel.orderFrontRegardless()
+        panel.makeKey()
 
         // Cada relayout do SwiftUI muda a altura; reancorar pelo topo mantém a caixa
         // colada na barra em vez de escorregar para baixo.
@@ -123,11 +131,9 @@ final class TrayPanel: NSObject {
         let expand = onExpandRequest
         let restore = onRestoreRequest
         close()
-        ItemActivator.activate(item, expand: { expand?() }) { _ in
-            // A barra só foi aberta para o ícone entrar no layout; o menu que abriu é
-            // janela própria e continua de pé quando ela volta a recolher.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restore?() }
-        }
+        ItemActivator.activate(item,
+                               expand: { expand?() },
+                               restore: { restore?() }) { _ in }
     }
 
     private func installMonitors() {

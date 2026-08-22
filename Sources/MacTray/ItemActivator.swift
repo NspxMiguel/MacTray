@@ -17,18 +17,85 @@ enum ItemActivator {
         case failed
     }
 
+    /// `restore` devolve a barra ao estado anterior — e só depois que o menu fechar:
+    /// recolher com o menu aberto o fecha junto, porque o ícone dono sai do layout.
     static func activate(_ item: MenuBarItem,
                          expand: @escaping () -> Void,
+                         restore: (() -> Void)? = nil,
                          completion: @escaping (Result) -> Void) {
         expand()
-        // O layout da barra só acontece no ciclo seguinte; agir antes disso pega o
-        // estado antigo, com o ícone ainda fora da tela.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            completion(perform(item))
+        // Abrir a barra não é instantâneo: enquanto o ícone não entra no layout, a ação de
+        // acessibilidade responde "não suportada" e a posição lida ainda é a de fora da
+        // tela. Esperar um tempo fixo às vezes acertava e às vezes não — então espera-se
+        // o ícone aparecer de fato.
+        waitUntilLaidOut(item) {
+            let result = perform(item)
+            completion(result)
+            guard let restore else { return }
+            switch result {
+            case .pressed, .clicked:
+                waitForMenuToClose(item, then: restore)
+            case .appActivated, .failed:
+                restore()
+            }
         }
     }
 
-    private static func perform(_ item: MenuBarItem) -> Result {
+    private static func waitUntilLaidOut(_ item: MenuBarItem, then act: @escaping () -> Void) {
+        var elapsed: TimeInterval = 0
+        let step: TimeInterval = 0.08
+        let limit: TimeInterval = 1.6
+
+        Timer.scheduledTimer(withTimeInterval: step, repeats: true) { timer in
+            elapsed += step
+            let frame = MenuBarScanner.frameOf(item.element)
+            if frame.minX >= 0 || elapsed >= limit {
+                timer.invalidate()
+                // Um quadro a mais: recém-posicionado, o item ainda recusa a ação.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: act)
+            }
+        }
+    }
+
+    /// Enquanto o menu de um ícone está aberto, o item fica marcado como selecionado.
+    /// É o único sinal disponível: menu aberto não é uma janela que dê para observar.
+    private static func waitForMenuToClose(_ item: MenuBarItem, then restore: @escaping () -> Void) {
+        var opened = false
+        var elapsed: TimeInterval = 0
+        let step: TimeInterval = 0.3
+        let limit: TimeInterval = 120
+
+        Timer.scheduledTimer(withTimeInterval: step, repeats: true) { timer in
+            elapsed += step
+            let selected = isSelected(item)
+            if selected { opened = true }
+
+            // Meio segundo sem abrir nada quer dizer que não havia menu para abrir.
+            let gaveUp = !opened && elapsed > 0.9
+            if (opened && !selected) || gaveUp || elapsed > limit {
+                timer.invalidate()
+                restore()
+            }
+        }
+    }
+
+    private static func isSelected(_ item: MenuBarItem) -> Bool {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(item.element, kAXSelectedAttribute as CFString, &value) == .success
+        else { return false }
+        return (value as? Bool) ?? false
+    }
+
+    private static func perform(_ stale: MenuBarItem) -> Result {
+        // O elemento guardado quando a barra estava recolhida não aceita mais a ação
+        // depois do relayout; o mesmo ícone, relido agora, aceita.
+        let fresh = MenuBarScanner.items(forPID: stale.ownerPID)
+        let item = fresh.first { $0.id == stale.id }
+            ?? fresh.first { $0.label == stale.label }
+            ?? stale
+
+        // Alguns apps declaram a ação e a recusam na hora (AXPress responde
+        // "não suportada"); por isso o clique de mouse continua como reserva.
         if AXUIElementPerformAction(item.element, kAXPressAction as CFString) == .success {
             return .pressed
         }
