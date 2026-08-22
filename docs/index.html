@@ -130,7 +130,7 @@
   </figure>
 
   <figure>
-    <img src="screenshot-tray.png" alt="A bandeja do MacTray aberta, com os ícones ocultos">
+    <img id="trayFigure" src="screenshot-tray-pt.png" alt="A bandeja do MacTray aberta, com os ícones ocultos">
     <figcaption>
       <span data-pt>A bandeja: clique na seta e os ícones que não cabem na barra aparecem aqui, com nome e ícone do app. Clicar num deles abre o menu daquele app.</span>
       <span data-en>The tray: click the arrow and the icons that do not fit the bar show up here, named. Clicking one opens that app's menu.</span>
@@ -238,6 +238,11 @@ MacTray.app/Contents/MacOS/MacTray --preferences</code></pre>
       // A figura tem texto dentro dela, entao tambem troca de idioma.
       var figure = document.getElementById("figure");
       figure.src = value === "pt" ? "screenshot-bar-pt.png" : "screenshot-bar.png";
+      var tray = document.getElementById("trayFigure");
+      tray.src = value === "pt" ? "screenshot-tray-pt.png" : "screenshot-tray.png";
+      tray.alt = value === "pt"
+        ? "A bandeja do MacTray aberta, com os ícones ocultos"
+        : "The MacTray panel open, showing the hidden icons";
       figure.alt = value === "pt"
         ? "MacTray fechado e aberto na barra de menus"
         : "MacTray collapsed and expanded on the menu bar";
