@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MacTray — a bandeja do Windows na barra de menus do Mac</title>
+<meta name="description" content="Uma seta que esconde os ícones da barra de menus do macOS que não cabem mais.">
+<style>
+  :root {
+    --bg: #f6f6f7;
+    --card: #ffffff;
+    --text: #16171a;
+    --muted: #5f6169;
+    --line: #e2e3e7;
+    --accent: #2f6fed;
+    --code-bg: #f0f1f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e0f11;
+      --card: #17181b;
+      --text: #edeef1;
+      --muted: #9a9da6;
+      --line: #26282d;
+      --accent: #6f9bff;
+      --code-bg: #101115;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px 80px; }
+  header { padding: 64px 0 40px; }
+  .lang {
+    display: flex; justify-content: flex-end; gap: 4px;
+    padding-top: 24px;
+  }
+  .lang button {
+    background: none; border: 1px solid var(--line); color: var(--muted);
+    border-radius: 999px; padding: 4px 12px; font-size: 13px; cursor: pointer;
+    font-family: inherit;
+  }
+  .lang button[aria-pressed="true"] { color: var(--text); border-color: var(--accent); }
+  .icon {
+    width: 76px; height: 76px; border-radius: 18px; display: grid; place-items: center;
+    background: linear-gradient(180deg, #3d3f47, #1a1b1f);
+    color: #fff; font-size: 34px; font-weight: 700; letter-spacing: -3px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  }
+  h1 { font-size: 42px; line-height: 1.1; margin: 24px 0 8px; letter-spacing: -1px; }
+  .tagline { font-size: 20px; color: var(--muted); margin: 0 0 28px; }
+  .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-block; background: var(--accent); color: #fff; text-decoration: none;
+    padding: 11px 20px; border-radius: 10px; font-weight: 600;
+  }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); }
+  .note { font-size: 14px; color: var(--muted); }
+  figure { margin: 44px 0; }
+  figure img {
+    width: 100%; border-radius: 12px; border: 1px solid var(--line);
+    display: block; background: var(--card);
+  }
+  figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; }
+  h2 { font-size: 24px; margin: 48px 0 12px; letter-spacing: -.4px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px;
+  }
+  .card h3 { margin: 0 0 6px; font-size: 15px; }
+  .card p { margin: 0; font-size: 14px; color: var(--muted); }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px;
+    padding: 14px 16px; overflow-x: auto; font-size: 13.5px;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  kbd {
+    background: var(--code-bg); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 6px; padding: 1px 6px; font-size: 13px; font-family: inherit;
+  }
+  footer {
+    margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line);
+    font-size: 14px; color: var(--muted); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  }
+  footer a { color: inherit; }
+  [data-en] { display: none; }
+  html[data-lang="en"] [data-pt] { display: none; }
+  html[data-lang="en"] [data-en] { display: revert; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="lang">
+    <button type="button" data-set-lang="pt" aria-pressed="true">Português</button>
+    <button type="button" data-set-lang="en" aria-pressed="false">English</button>
+  </div>
+
+  <header>
+    <div class="icon">&laquo;</div>
+    <h1>MacTray</h1>
+    <p class="tagline">
+      <span data-pt>A bandeja do Windows, na barra de menus do Mac.</span>
+      <span data-en>The Windows tray, on the Mac menu bar.</span>
+    </p>
+    <div class="cta">
+      <a class="btn" href="https://github.com/NspxMiguel/MacTray/releases/latest">
+        <span data-pt>Baixar</span><span data-en>Download</span>
+      </a>
+      <a class="btn ghost" href="https://github.com/NspxMiguel/MacTray">
+        <span data-pt>Código no GitHub</span><span data-en>Source on GitHub</span>
+      </a>
+      <span class="note">
+        <span data-pt>macOS 14 ou mais novo · Apple Silicon e Intel · MIT</span>
+        <span data-en>macOS 14 or newer · Apple Silicon and Intel · MIT</span>
+      </span>
+    </div>
+  </header>
+
+  <figure>
+    <img src="screenshot-bar.png" alt="MacTray fechado e aberto na barra de menus">
+    <figcaption>
+      <span data-pt>Fechado, sobra uma seta. Um clique e os ícones voltam.</span>
+      <span data-en>Collapsed, one arrow is left. One click and the icons come back.</span>
+    </figcaption>
+  </figure>
+
+  <h2><span data-pt>Por que isso existe</span><span data-en>Why it exists</span></h2>
+  <p data-pt>
+    O macOS não tem área de excesso na barra de menus. Quando a barra enche — e num
+    MacBook o notch come metade dela — os ícones novos são descartados em silêncio:
+    eles nascem na ponta esquerda, justamente onde o notch e os menus do app estão.
+    Nada avisa; o ícone simplesmente não aparece.
+  </p>
+  <p data-en>
+    macOS has no overflow area on the menu bar. Once it fills up — and on a MacBook the
+    notch eats half of it — new status icons are dropped silently: they are laid out at
+    the far left, exactly where the notch and the app menus sit. Nothing warns you; the
+    icon just never shows up.
+  </p>
+
+  <h2><span data-pt>Como usar</span><span data-en>How to use it</span></h2>
+  <div class="grid">
+    <div class="card">
+      <h3><span data-pt>Clique na seta</span><span data-en>Click the arrow</span></h3>
+      <p><span data-pt>Mostra e esconde tudo o que está recolhido.</span>
+         <span data-en>Shows and hides everything that is collapsed.</span></p>
+    </div>
+    <div class="card">
+      <h3><kbd>⌘</kbd> <span data-pt>arraste</span><span data-en>drag</span></h3>
+      <p><span data-pt>Decide o que fica escondido: à esquerda da seta some, à direita continua visível.</span>
+         <span data-en>Decides what gets hidden: left of the arrow collapses, right of it stays visible.</span></p>
+    </div>
+    <div class="card">
+      <h3><kbd>⌥</kbd> <span data-pt>clique</span><span data-en>click</span></h3>
+      <p><span data-pt>Revela também a área sempre oculta, para o que você quase nunca precisa ver.</span>
+         <span data-en>Also reveals the always-hidden area, for what you almost never need to see.</span></p>
+    </div>
+    <div class="card">
+      <h3><span data-pt>Clique direito</span><span data-en>Right click</span></h3>
+      <p><span data-pt>Preferências, Sobre e Sair.</span>
+         <span data-en>Preferences, About and Quit.</span></p>
+    </div>
+  </div>
+
+  <h2><span data-pt>Instalação</span><span data-en>Install</span></h2>
+  <p data-pt>Baixe o <code>.zip</code> da release, arraste o app para <code>Aplicativos</code> e abra.
+     Quem preferir compilar:</p>
+  <p data-en>Download the release <code>.zip</code>, drag the app into <code>Applications</code> and open it.
+     To build it yourself:</p>
+<pre><code>git clone https://github.com/NspxMiguel/MacTray.git
+cd MacTray
+./build.sh
+cp -R build/MacTray.app /Applications/</code></pre>
+
+  <h2><span data-pt>Sem permissões</span><span data-en>No permissions</span></h2>
+  <p data-pt>
+    Nenhuma. Sem Acessibilidade, sem Gravação de Tela. O atalho global usa o
+    <code>RegisterEventHotKey</code> do Carbon e a detecção de clique fora usa monitor
+    global de <em>mouse</em> — nenhum dos dois pede autorização ao sistema.
+  </p>
+  <p data-en>
+    None. No Accessibility, no Screen Recording. The global shortcut uses Carbon's
+    <code>RegisterEventHotKey</code> and outside-click detection uses a global
+    <em>mouse</em> monitor — neither triggers a system prompt.
+  </p>
+
+  <h2><span data-pt>Linha de comando</span><span data-en>Command line</span></h2>
+  <p data-pt>O binário também controla a instância que já está rodando — serve para Atalhos, Raycast ou um script:</p>
+  <p data-en>The binary also drives the running instance — handy for Shortcuts, Raycast or a script:</p>
+<pre><code>MacTray.app/Contents/MacOS/MacTray --toggle
+MacTray.app/Contents/MacOS/MacTray --show-all
+MacTray.app/Contents/MacOS/MacTray --preferences</code></pre>
+
+  <footer>
+    <span>MacTray · MIT</span>
+    <span><a href="https://www.nspx.dev">nspx.dev</a></span>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var saved = localStorage.getItem("mactray-lang");
+    var lang = saved || ((navigator.language || "en").toLowerCase().indexOf("pt") === 0 ? "pt" : "en");
+    apply(lang);
+
+    document.querySelectorAll("[data-set-lang]").forEach(function (button) {
+      button.addEventListener("click", function () {
+        var chosen = button.getAttribute("data-set-lang");
+        localStorage.setItem("mactray-lang", chosen);
+        apply(chosen);
+      });
+    });
+
+    function apply(value) {
+      document.documentElement.setAttribute("data-lang", value);
+      document.documentElement.lang = value === "pt" ? "pt-BR" : "en";
+      document.querySelectorAll("[data-set-lang]").forEach(function (button) {
+        button.setAttribute("aria-pressed", String(button.getAttribute("data-set-lang") === value));
+      });
+    }
+  })();
+</script>
+</body>
+</html>
