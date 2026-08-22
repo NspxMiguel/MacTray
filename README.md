@@ -139,6 +139,17 @@ Both are also on the command line:
 /Applications/MacTray.app/Contents/MacOS/MacTray --unpin Figma
 ```
 
+The arrow travels with the boundary, staying just to its left — before the pinned
+icons, like the Windows arrow. Parking it at the right edge instead put the pinned icons
+between the arrow and the panel, so the panel opened underneath them.
+
+Reading the bar means asking every running process whether it owns menu bar items, which
+on a normal machine is ~170 questions and takes about half a second — far too much to do
+on every click. Apps that answered yes are remembered and are the only ones asked on the
+fast path (~15 ms); the full sweep runs in the background every 20 seconds, six at a
+time, because each accessibility call blocks its thread and letting GCD open one per app
+stalled the whole machine.
+
 Two things worth knowing about that preferred position key: macOS deletes it when the
 status item goes away, so the chosen boundary is kept in MacTray's own preferences and
 written back on every launch; and the deletion lands *after* the removal, so the

@@ -102,81 +102,96 @@ enum MenuBarScanner {
         }
     }
 
+    /// Perguntar a todos os processos abertos custa meio segundo e uma enxurrada de
+    /// threads — a cada clique na seta isso travava a máquina inteira. Quase nenhum app
+    /// tem ícone na barra, então os que têm ficam anotados e são os únicos consultados no
+    /// caminho rápido; a lista completa é revista de vez em quando, em segundo plano.
+    private static var knownOwners: [pid_t] = []
+    private static var lastFullScan: Date = .distantPast
+    private static let fullScanInterval: TimeInterval = 20
+
     static func scan() -> [MenuBarItem] {
         guard isAuthorized else { return [] }
-        // Filtra pelo identificador e nao pelo pid: os comandos de diagnostico rodam num
-        // processo diferente do app que esta na barra, e os separadores do proprio MacTray
-        // apareceriam na bandeja.
+        let now = Date()
+        let owners: [NSRunningApplication]
+
+        if !knownOwners.isEmpty, now.timeIntervalSince(lastFullScan) < fullScanInterval {
+            owners = knownOwners.compactMap { NSRunningApplication(processIdentifier: $0) }
+        } else {
+            lastFullScan = now
+            owners = candidateApps()
+        }
+
+        let found = read(from: owners)
+        let ownersWithItems = Set(found.map(\.ownerPID))
+        if !ownersWithItems.isEmpty { knownOwners = Array(ownersWithItems) }
+        return found.sorted { $0.frame.minX < $1.frame.minX }
+    }
+
+    private static func candidateApps() -> [NSRunningApplication] {
         let ownBundleID = Bundle.main.bundleIdentifier ?? "dev.nspx.MacTray"
-        let apps = NSWorkspace.shared.runningApplications.filter {
+        return NSWorkspace.shared.runningApplications.filter {
             $0.bundleIdentifier != ownBundleID && $0.activationPolicy != .prohibited
         }
+    }
 
-        // Em série isto levava mais de dez segundos: cada app que não responde segura a
-        // fila inteira. Em paralelo, e com prazo curto para responder, fica em menos de um.
+    private static func read(from apps: [NSRunningApplication]) -> [MenuBarItem] {
+        // Concorrência limitada de propósito: chamada de acessibilidade bloqueia a thread,
+        // e deixar o GCD abrir uma por app abria dezenas de uma vez.
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 6
+        queue.qualityOfService = .userInitiated
+
         let lock = NSLock()
         var found: [MenuBarItem] = []
-        DispatchQueue.concurrentPerform(iterations: apps.count) { index in
-            let app = apps[index]
-            let appElement = AXUIElementCreateApplication(app.processIdentifier)
-            AXUIElementSetMessagingTimeout(appElement, 0.3)
-            guard let extras = copy(appElement, "AXExtrasMenuBar") else { return }
-            let bar = extras as! AXUIElement
-            AXUIElementSetMessagingTimeout(bar, 0.3)
-            guard let children = copy(bar, kAXChildrenAttribute as String) as? [AXUIElement] else { return }
 
-            var mine: [MenuBarItem] = []
-            for (position, item) in children.enumerated() {
-                AXUIElementSetMessagingTimeout(item, 0.3)
-                let frame = frameOf(item)
-                // Itens zerados são placeholders que a Central de Controle mantém para
-                // recursos desligados; não existem na barra.
-                guard frame.width > 0 else { continue }
-                let label = (copy(item, kAXDescriptionAttribute as String) as? String)
-                    ?? (copy(item, kAXTitleAttribute as String) as? String) ?? ""
-                mine.append(MenuBarItem(
-                    id: "\(app.processIdentifier)-\(position)",
-                    ownerPID: app.processIdentifier,
-                    ownerName: app.localizedName ?? "?",
-                    label: label.trimmingCharacters(in: .whitespacesAndNewlines),
-                    frame: frame,
-                    element: item))
+        for app in apps {
+            queue.addOperation {
+                let mine = itemsOf(app)
+                guard !mine.isEmpty else { return }
+                lock.lock()
+                found.append(contentsOf: mine)
+                lock.unlock()
             }
-            guard !mine.isEmpty else { return }
-            lock.lock()
-            found.append(contentsOf: mine)
-            lock.unlock()
         }
+        queue.waitUntilAllOperationsAreFinished()
+        return found
+    }
 
-        // Da esquerda para a direita, como na barra.
-        return found.sorted { $0.frame.minX < $1.frame.minX }
+    private static func itemsOf(_ app: NSRunningApplication) -> [MenuBarItem] {
+        let appElement = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(appElement, 0.2)
+        guard let extras = copy(appElement, "AXExtrasMenuBar") else { return [] }
+        let bar = extras as! AXUIElement
+        AXUIElementSetMessagingTimeout(bar, 0.2)
+        guard let children = copy(bar, kAXChildrenAttribute as String) as? [AXUIElement] else { return [] }
+
+        var mine: [MenuBarItem] = []
+        for (position, item) in children.enumerated() {
+            AXUIElementSetMessagingTimeout(item, 0.2)
+            let frame = frameOf(item)
+            // Itens zerados são placeholders que a Central de Controle mantém para
+            // recursos desligados; não existem na barra.
+            guard frame.width > 0 else { continue }
+            let label = (copy(item, kAXDescriptionAttribute as String) as? String)
+                ?? (copy(item, kAXTitleAttribute as String) as? String) ?? ""
+            mine.append(MenuBarItem(
+                id: "\(app.processIdentifier)-\(position)",
+                ownerPID: app.processIdentifier,
+                ownerName: app.localizedName ?? "?",
+                label: label.trimmingCharacters(in: .whitespacesAndNewlines),
+                frame: frame,
+                element: item))
+        }
+        return mine
     }
 
     /// Relê os ícones de um app só. Quando a barra faz relayout, o macOS troca os
     /// elementos de acessibilidade: o que estava guardado ainda responde posição, mas
     /// recusa a ação de clique. Antes de acionar, vale pegar o elemento novo.
     static func items(forPID pid: pid_t) -> [MenuBarItem] {
-        guard isAuthorized,
-              let app = NSRunningApplication(processIdentifier: pid) else { return [] }
-        let appElement = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(appElement, 0.3)
-        guard let extras = copy(appElement, "AXExtrasMenuBar"),
-              let children = copy(extras as! AXUIElement, kAXChildrenAttribute as String) as? [AXUIElement]
-        else { return [] }
-
-        return children.enumerated().compactMap { position, item in
-            let frame = frameOf(item)
-            guard frame.width > 0 else { return nil }
-            let label = (copy(item, kAXDescriptionAttribute as String) as? String)
-                ?? (copy(item, kAXTitleAttribute as String) as? String) ?? ""
-            return MenuBarItem(
-                id: "\(pid)-\(position)",
-                ownerPID: pid,
-                ownerName: app.localizedName ?? "?",
-                label: label.trimmingCharacters(in: .whitespacesAndNewlines),
-                frame: frame,
-                element: item)
-        }
+        guard isAuthorized, let app = NSRunningApplication(processIdentifier: pid) else { return [] }
+        return itemsOf(app)
     }
 
     /// Espera o ícone entrar no layout da barra e devolve a versão nova dele. Depois de

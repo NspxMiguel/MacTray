@@ -47,7 +47,7 @@ enum ItemActivator {
         var opened = false
         var elapsed: TimeInterval = 0
         let step: TimeInterval = 0.3
-        let limit: TimeInterval = 120
+        let limit: TimeInterval = 60
 
         Timer.scheduledTimer(withTimeInterval: step, repeats: true) { timer in
             elapsed += step

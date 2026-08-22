@@ -76,7 +76,9 @@ final class TrayController: NSObject {
         // A fronteira escolhida pelo usuário vale sobre a posição semeada: o sistema apaga
         // a chave dele ao encerrar o app, então ela é reescrita a cada arranque.
         if let boundary = Defaults.boundaryPosition {
-            UserDefaults.standard.set(boundary, forKey: "NSStatusItem Preferred Position MacTrayExpand")
+            let defaults = UserDefaults.standard
+            defaults.set(boundary, forKey: "NSStatusItem Preferred Position MacTrayExpand")
+            defaults.set(togglePosition(for: boundary), forKey: "NSStatusItem Preferred Position MacTrayToggle")
         }
 
         toggleItem = statusBar.statusItem(withLength: NSStatusItem.squareLength)
@@ -393,6 +395,17 @@ final class TrayController: NSObject {
         rebuildOwnItems(positions: ["MacTrayExpand": position])
     }
 
+    /// Onde a seta deve nascer, dada a fronteira. Ela fica logo à direita do separador,
+    /// mas nunca tão à esquerda que caia atrás do notch: lá ninguém consegue clicar nela.
+    private func togglePosition(for boundary: Double) -> Double {
+        guard boundary > 40 else { return 0 }
+        let screen = toggleItem?.button?.window?.screen ?? NSScreen.main
+        let area = MenuBarScanner.clickableArea(on: screen)
+        let width = (screen ?? NSScreen.main)?.frame.width ?? 1512
+        let furthestLeft = Double(width - area.minX) - 30
+        return min(boundary - 26, max(0, furthestLeft))
+    }
+
     /// Recria os próprios itens para que o sistema releia a posição pedida.
     ///
     /// A ordem aqui não é enfeite: remover um NSStatusItem apaga a chave de posição dele,
@@ -415,8 +428,12 @@ final class TrayController: NSObject {
             for (name, value) in positions {
                 defaults.set(value, forKey: "NSStatusItem Preferred Position \(name)")
             }
-            // A seta volta sempre para a ponta direita, onde dá para clicar nela.
-            defaults.set(0.0, forKey: "NSStatusItem Preferred Position MacTrayToggle")
+            // A seta anda junto com o separador, logo à direita dele — antes dos ícones
+            // fixados, como a setinha do Windows. Deixá-la na ponta direita punha os
+            // fixados entre a seta e a bandeja, e a caixa abria por baixo deles.
+            let boundary = positions["MacTrayExpand"] ?? Defaults.boundaryPosition ?? 0
+            defaults.set(self.togglePosition(for: boundary),
+                         forKey: "NSStatusItem Preferred Position MacTrayToggle")
             self.buildItems()
             self.state = previous
             self.applyState()
