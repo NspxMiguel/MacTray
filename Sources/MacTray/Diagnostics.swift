@@ -40,18 +40,12 @@ enum Diagnostics {
             print("não achei nenhum ícone de \"\(needle)\"")
             exit(1)
         }
-        let area = MenuBarScanner.clickableArea(on: NSScreen.main)
-        let frame = item.frame
-        guard frame.minX >= area.minX, frame.maxX <= area.maxX else {
-            print("\(item.displayName) está em x=\(Int(frame.minX)), fora da área clicável (\(Int(area.minX))–\(Int(area.maxX)))")
-            print("mostre a barra antes: MacTray --show")
-            exit(3)
-        }
+        // Pede à instância que está na barra para expandir: o ícone precisa estar no
+        // layout para aceitar a ação.
         RemoteCommand.send(.show)
-        usleep(300_000)
         ItemActivator.activate(item, expand: {}) { result in
-            print("\(item.displayName): \(result)")
-            exit(0)
+            print("\(item.displayName): \(result.rawValue)")
+            exit(result == .failed ? 1 : 0)
         }
         RunLoop.main.run(until: Date().addingTimeInterval(3))
     }
@@ -63,7 +57,7 @@ enum Diagnostics {
         let screen = NSScreen.main
         let hidden = items.filter { !MenuBarScanner.isClickable($0, on: screen) }
         let model = TrayPanelModel(items: items, screen: screen)
-        let view = TrayPanelView(model: model, onPick: { _ in }, onPreferences: {}, onClose: {})
+        let view = TrayPanelView(model: model, onPick: { _ in }, onPreferences: {})
 
         let renderer = ImageRenderer(content: view)
         renderer.scale = 2

@@ -17,17 +17,23 @@ final class TrayPanel: NSObject {
     private var outsideClickMonitor: Any?
     private var localKeyMonitor: Any?
     private var onExpandRequest: (() -> Void)?
+    private var onRestoreRequest: (() -> Void)?
 
     var isOpen: Bool { panel?.isVisible == true }
 
     /// `anchor` é o botão da seta; o painel abre alinhado com ele.
-    func toggle(anchor: NSStatusBarButton?, expand: @escaping () -> Void) {
-        isOpen ? close() : open(anchor: anchor, expand: expand)
+    func toggle(anchor: NSStatusBarButton?,
+                expand: @escaping () -> Void,
+                restore: @escaping () -> Void) {
+        isOpen ? close() : open(anchor: anchor, expand: expand, restore: restore)
     }
 
-    func open(anchor: NSStatusBarButton?, expand: @escaping () -> Void) {
-        onExpandRequest = expand
+    func open(anchor: NSStatusBarButton?,
+              expand: @escaping () -> Void,
+              restore: @escaping () -> Void) {
         close()
+        onExpandRequest = expand
+        onRestoreRequest = restore
 
         let screen = anchor?.window?.screen
         let model = TrayPanelModel(items: MenuBarScanner.cached, screen: screen)
@@ -39,8 +45,7 @@ final class TrayPanel: NSObject {
         let content = TrayPanelView(
             model: model,
             onPick: { [weak self] item in self?.pick(item) },
-            onPreferences: { PreferencesWindowController.shared.show() },
-            onClose: { [weak self] in self?.close() })
+            onPreferences: { PreferencesWindowController.shared.show() })
 
         let hosting = NSHostingView(rootView: content)
         hosting.layoutSubtreeIfNeeded()
@@ -80,6 +85,8 @@ final class TrayPanel: NSObject {
         resizeObserver = nil
         desiredTopLeft = nil
         model = nil
+        onExpandRequest = nil
+        onRestoreRequest = nil
         panel?.orderOut(nil)
         panel = nil
     }
@@ -87,20 +94,19 @@ final class TrayPanel: NSObject {
     // MARK: - Posicionamento
 
     private func position(_ panel: NSPanel, below anchor: NSStatusBarButton?) {
-        let size = panel.frame.size
+        let width = panel.frame.width
         let screen = anchor?.window?.screen ?? NSScreen.main ?? NSScreen.screens.first
         guard let screen else { return }
         let margin: CGFloat = 8
 
         // Alinha a borda direita do painel com a da seta, como o Windows faz.
-        var x = (anchor?.window?.frame.maxX ?? screen.frame.maxX - margin) - size.width
-        x = min(max(x, screen.frame.minX + margin), screen.frame.maxX - size.width - margin)
+        var x = (anchor?.window?.frame.maxX ?? screen.frame.maxX - margin) - width
+        x = min(max(x, screen.frame.minX + margin), screen.frame.maxX - width - margin)
 
         // visibleFrame.maxY é exatamente onde a barra de menus termina.
         // visibleFrame.maxY é exatamente onde a barra de menus termina.
         desiredTopLeft = NSPoint(x: x, y: screen.visibleFrame.maxY - 4)
         applyTopLeft()
-        _ = size
     }
 
     private func applyTopLeft() {
@@ -111,8 +117,14 @@ final class TrayPanel: NSObject {
     // MARK: - Interação
 
     private func pick(_ item: MenuBarItem) {
+        let expand = onExpandRequest
+        let restore = onRestoreRequest
         close()
-        ItemActivator.activate(item, expand: { [weak self] in self?.onExpandRequest?() }) { _ in }
+        ItemActivator.activate(item, expand: { expand?() }) { _ in
+            // A barra só foi aberta para o ícone entrar no layout; o menu que abriu é
+            // janela própria e continua de pé quando ela volta a recolher.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { restore?() }
+        }
     }
 
     private func installMonitors() {
@@ -157,7 +169,6 @@ struct TrayPanelView: View {
     @ObservedObject var model: TrayPanelModel
     let onPick: (MenuBarItem) -> Void
     let onPreferences: () -> Void
-    let onClose: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
     @State private var hovered: String?

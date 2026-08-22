@@ -18,9 +18,22 @@
 
 ## 21/08/2026 — segunda rodada
 
-- [ ] *"tipo oq era o ice, soq o ice ficou horrivel nos novos macos, cheio de bug. ai tem
+- [x] *"tipo oq era o ice, soq o ice ficou horrivel nos novos macos, cheio de bug. ai tem
   a opção de ocultar tudo, ou o tray igual do windows, q alguns ficam fora alguns dentro"*
-- [ ] *"resumidamente, isso q eu queria"* — com um desenho por cima da barra: a seta `<`
+- [x] *"resumidamente, isso q eu queria"* — com um desenho por cima da barra: a seta `<`
   abre uma **caixa** com os apps ocultos dentro (balão "apps"), e o que fica na barra é
   "fixed apps". Ou seja: painel flutuante como o do Windows, não só empurrar a barra.
-- [ ] *"usa o computer use pra ver c ta funcionando, ate agr nada"*
+  - Entregue na v1.1.0: clicar na seta abre a bandeja com os ícones que não estão na
+    barra, cada um com o ícone e o nome do app; clicar num deles abre o menu daquele app.
+    Precisa da permissão de Acessibilidade (é como o macOS deixa ler a barra dos outros);
+    desligando a bandeja nas Preferências, o app não pede nada.
+  - Os dois modos que ele pediu convivem: a bandeja (ícone dentro da caixa) e o
+    empurra-barra (ícone de volta na barra), com a chave nas Preferências. Quem fica
+    "fora" continua sendo decidido com ⌘ arrastando na barra.
+- [x] *"usa o computer use pra ver c ta funcionando, ate agr nada"* — testado com clique
+  real na seta pelo computer use: a barra expandiu e os ícones voltaram.
+- [ ] Falta conferir na tela: a bandeja aberta na barra dele. O Mac ficou bloqueado a
+  noite toda (`IOConsoleLocked = Yes`), e com a sessão trancada não dá para capturar tela
+  nem clicar. O que deu para provar sem tela: a leitura da barra (16 ícones, 13 fora),
+  o desenho da bandeja (PNG renderizado), a janela abrindo no lugar certo (topo colado
+  na barra, alinhada à seta) e o acionamento de um ícone escondido devolvendo `pressed`.

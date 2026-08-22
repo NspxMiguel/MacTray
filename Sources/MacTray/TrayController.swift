@@ -219,9 +219,10 @@ final class TrayController: NSObject {
         if TrayPanel.shared.isOpen {
             TrayPanel.shared.close()
         } else {
-            TrayPanel.shared.open(anchor: toggleItem.button) { [weak self] in
-                self?.state = .expanded
-            }
+            TrayPanel.shared.open(
+                anchor: toggleItem.button,
+                expand: { [weak self] in self?.state = .expanded },
+                restore: { [weak self] in self?.state = .collapsed })
         }
     }
 
