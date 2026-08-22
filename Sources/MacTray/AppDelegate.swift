@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.onTrigger = { [weak tray] in tray?.toggle() }
         HotKeyManager.shared.reload()
 
+        TrayPanel.shared.onClose = { [weak tray] in tray?.panelDidClose() }
+
         observeRemoteCommands(tray: tray)
 
         // Deixa o retrato da barra pronto antes do primeiro clique na seta.
@@ -30,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func observeRemoteCommands(tray: TrayController) {
         let center = DistributedNotificationCenter.default()
         for command in RemoteCommand.allCases {
-            center.addObserver(forName: command.notificationName, object: nil, queue: .main) { [weak tray] _ in
+            center.addObserver(forName: command.notificationName, object: nil, queue: .main) { [weak tray] note in
                 guard let tray else { return }
                 switch command {
                 case .toggle: tray.toggle()
@@ -39,6 +41,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case .showAll: tray.revealAll()
                 case .panel: tray.togglePanel()
                 case .preferences: PreferencesWindowController.shared.show()
+                case .pin, .unpin:
+                    guard let needle = note.object as? String else { return }
+                    let wanted = command == .pin
+                    let items = MenuBarScanner.scan()
+                    guard let item = items.first(where: {
+                        $0.ownerName.lowercased().contains(needle.lowercased())
+                            || $0.displayName.lowercased().contains(needle.lowercased())
+                    }) else {
+                        NSLog("MacTray: não achei ícone de %@", needle)
+                        return
+                    }
+                    tray.setPinned(item, wanted) { result in
+                        switch result {
+                        case .success: NSLog("MacTray: %@ agora está %@", item.displayName, wanted ? "na barra" : "na bandeja")
+                        case .failure(let error): NSLog("MacTray: não deu para mover %@ (%@)", item.displayName, "\(error)")
+                        }
+                    }
                 }
             }
         }

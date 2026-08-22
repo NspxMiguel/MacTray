@@ -26,6 +26,9 @@ final class PrefsModel: ObservableObject {
     @Published var showSeparator: Bool = Defaults.showSeparator {
         didSet { Defaults.showSeparator = showSeparator; notify() }
     }
+    @Published var animateToggle: Bool = Defaults.animateToggle {
+        didSet { Defaults.animateToggle = animateToggle; notify() }
+    }
     @Published var icon: TrayIcon = Defaults.icon {
         didSet { Defaults.icon = icon; notify() }
     }
@@ -65,7 +68,7 @@ final class PrefsModel: ObservableObject {
 }
 
 enum PrefsTab: String, Hashable {
-    case general, appearance, about
+    case general, icons, appearance, about
 
     /// A janela reabre na aba onde o usuario parou.
     static var remembered: PrefsTab {
@@ -84,6 +87,9 @@ struct PreferencesView: View {
             general
                 .tabItem { Label(l10n("prefs.tab.general"), systemImage: "gearshape") }
                 .tag(PrefsTab.general)
+            IconsView()
+                .tabItem { Label(l10n("prefs.tab.icons"), systemImage: "menubar.rectangle") }
+                .tag(PrefsTab.icons)
             appearance
                 .tabItem { Label(l10n("prefs.tab.appearance"), systemImage: "paintbrush") }
                 .tag(PrefsTab.appearance)
@@ -176,6 +182,7 @@ struct PreferencesView: View {
                     }
                 }
                 Toggle(l10n("prefs.showSeparator"), isOn: $model.showSeparator)
+                Toggle(l10n("prefs.animate"), isOn: $model.animateToggle)
             }
 
             Section {

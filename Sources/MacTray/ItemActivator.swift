@@ -27,9 +27,9 @@ enum ItemActivator {
         // Abrir a barra não é instantâneo: enquanto o ícone não entra no layout, a ação de
         // acessibilidade responde "não suportada" e a posição lida ainda é a de fora da
         // tela. Esperar um tempo fixo às vezes acertava e às vezes não — então espera-se
-        // o ícone aparecer de fato.
-        waitUntilLaidOut(item) {
-            let result = perform(item)
+        // o ícone aparecer de fato, e é o elemento novo que vale.
+        MenuBarScanner.awaitLaidOut(item) { laidOut in
+            let result = perform(laidOut ?? item)
             completion(result)
             guard let restore else { return }
             switch result {
@@ -37,22 +37,6 @@ enum ItemActivator {
                 waitForMenuToClose(item, then: restore)
             case .appActivated, .failed:
                 restore()
-            }
-        }
-    }
-
-    private static func waitUntilLaidOut(_ item: MenuBarItem, then act: @escaping () -> Void) {
-        var elapsed: TimeInterval = 0
-        let step: TimeInterval = 0.08
-        let limit: TimeInterval = 1.6
-
-        Timer.scheduledTimer(withTimeInterval: step, repeats: true) { timer in
-            elapsed += step
-            let frame = MenuBarScanner.frameOf(item.element)
-            if frame.minX >= 0 || elapsed >= limit {
-                timer.invalidate()
-                // Um quadro a mais: recém-posicionado, o item ainda recusa a ação.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12, execute: act)
             }
         }
     }

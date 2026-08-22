@@ -8,6 +8,8 @@ enum RemoteCommand: String, CaseIterable {
     case showAll = "show-all"
     case panel
     case preferences
+    case pin
+    case unpin
 
     var notificationName: Notification.Name {
         Notification.Name("dev.nspx.MacTray.\(rawValue)")
@@ -23,9 +25,20 @@ enum RemoteCommand: String, CaseIterable {
         return nil
     }
 
-    static func send(_ command: RemoteCommand) {
+    static func send(_ command: RemoteCommand, argument: String? = nil) {
         DistributedNotificationCenter.default().postNotificationName(
-            command.notificationName, object: nil, userInfo: nil, deliverImmediately: true)
+            command.notificationName, object: argument, userInfo: nil, deliverImmediately: true)
+    }
+
+    /// `--pin Docker` e `--unpin Docker` levam o nome do app junto.
+    static func withArgument(_ arguments: [String]) -> (RemoteCommand, String)? {
+        for (index, argument) in arguments.enumerated() where argument.hasPrefix("--") {
+            guard let command = RemoteCommand(rawValue: String(argument.dropFirst(2))),
+                  command == .pin || command == .unpin,
+                  index + 1 < arguments.count else { continue }
+            return (command, arguments[index + 1])
+        }
+        return nil
     }
 
     static var usage: String {

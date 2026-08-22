@@ -179,6 +179,32 @@ enum MenuBarScanner {
         }
     }
 
+    /// Espera o ícone entrar no layout da barra e devolve a versão nova dele. Depois de
+    /// abrir a barra, o elemento guardado ainda responde a posição antiga (fora da tela) e
+    /// recusa qualquer ação — quem for agir precisa deste, não daquele.
+    static func awaitLaidOut(_ item: MenuBarItem,
+                             timeout: TimeInterval = 1.8,
+                             then completion: @escaping (MenuBarItem?) -> Void) {
+        var elapsed: TimeInterval = 0
+        let step: TimeInterval = 0.08
+
+        Timer.scheduledTimer(withTimeInterval: step, repeats: true) { timer in
+            elapsed += step
+            let fresh = items(forPID: item.ownerPID)
+            let match = fresh.first { $0.id == item.id }
+                ?? fresh.first { $0.label == item.label && !item.label.isEmpty }
+
+            if let match, match.frame.minX >= 0 {
+                timer.invalidate()
+                // Um quadro a mais: recém-posicionado, o ícone ainda recusa a ação.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { completion(match) }
+            } else if elapsed >= timeout {
+                timer.invalidate()
+                completion(match)
+            }
+        }
+    }
+
     /// Área da barra onde um clique realmente chega no ícone: à direita do notch.
     /// Fora dela o macOS desenha o recorte da câmera ou os menus do app, e o clique
     /// não encontra ninguém — foi medido, não suposto.

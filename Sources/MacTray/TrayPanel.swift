@@ -25,6 +25,8 @@ final class TrayPanel: NSObject {
     private var localKeyMonitor: Any?
     private var onExpandRequest: (() -> Void)?
     private var onRestoreRequest: (() -> Void)?
+    /// Avisado sempre que a caixa sai da tela, inclusive quando ela fecha sozinha.
+    var onClose: (() -> Void)?
 
     var isOpen: Bool { panel?.isVisible == true }
 
@@ -98,8 +100,10 @@ final class TrayPanel: NSObject {
         model = nil
         onExpandRequest = nil
         onRestoreRequest = nil
+        let wasOpen = panel != nil
         panel?.orderOut(nil)
         panel = nil
+        if wasOpen { onClose?() }
     }
 
     // MARK: - Posicionamento

@@ -31,6 +31,11 @@ if let index = CommandLine.arguments.firstIndex(of: "--render-panel"),
     exit(0)
 }
 
+if let (command, argument) = RemoteCommand.withArgument(CommandLine.arguments) {
+    RemoteCommand.send(command, argument: argument)
+    exit(0)
+}
+
 if let command = RemoteCommand.fromArguments(CommandLine.arguments) {
     RemoteCommand.send(command)
     exit(0)

@@ -114,16 +114,47 @@ signed ad-hoc — no Apple Developer account needed.
 - **⌘ drag any menu bar icon** — this is how you decide what gets hidden: whatever
   sits to the left of the arrow collapses, whatever sits to its right stays visible.
 
+### Choosing what stays on the bar
+
+The **Icons** tab lists everything on the menu bar in two groups — what stays on the bar
+and what lives in the tray — with a button to move an icon between them.
+
+The two directions work differently, because macOS only accepts one of them:
+
+- **Send to the tray** drags the icon to the left of the arrow, the same ⌘ drag you would
+  do by hand. Synthetic drags to the *left* work; to the right the system ignores them,
+  which is why the other direction takes another route.
+- **Keep on the bar** moves the arrow to just before that icon instead, by writing its
+  preferred position and recreating the item. Anything to the right of the icon therefore
+  stays on the bar too — with a full bar that is geometry, not a choice: an icon cannot
+  become visible while the ones between it and the arrow stay hidden.
+
+An icon parked under the notch cannot be dragged at all — nothing can grab what the
+system does not draw — so *Send to the tray* reports that instead of pretending.
+
+Both are also on the command line:
+
+```bash
+/Applications/MacTray.app/Contents/MacOS/MacTray --pin Docker
+/Applications/MacTray.app/Contents/MacOS/MacTray --unpin Figma
+```
+
+Two things worth knowing about that preferred position key: macOS deletes it when the
+status item goes away, so the chosen boundary is kept in MacTray's own preferences and
+written back on every launch; and the deletion lands *after* the removal, so the
+rewrite has to happen on the next run loop pass or it is lost.
+
 ### Preferences
 
 | Setting | Default |
 | --- | --- |
 | Clicking the arrow opens the tray | on |
+| Animate the arrow on click | on |
 | Open at login | off |
 | Hide when clicking anywhere else | off |
 | Auto-hide after N seconds | off, 10 s |
 | Always-hidden area | off |
-| Arrow icon (chevron, double chevron, triangle, dot) | chevron |
+| Arrow icon (chevron, double chevron, triangle, dot) | chevron, pointing down |
 | Separator line while expanded | on |
 | Global keyboard shortcut | none |
 | Language (automatic, Português, English) | automatic |

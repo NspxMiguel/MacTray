@@ -21,6 +21,9 @@ final class TrayController: NSObject {
         case revealedAll
     }
 
+    /// A interface de preferências precisa falar com quem manda na barra.
+    private(set) static weak var shared: TrayController?
+
     private static let hugeLength: CGFloat = 10_000
     private static let separatorLength: CGFloat = 10
 
@@ -38,6 +41,7 @@ final class TrayController: NSObject {
 
     override init() {
         super.init()
+        TrayController.shared = self
         buildItems()
         applyState()
         NotificationCenter.default.addObserver(
@@ -63,10 +67,17 @@ final class TrayController: NSObject {
     }
 
     private func buildItems() {
-        // Ordem de criacao importa: cada item novo entra a esquerda dos anteriores.
+        // Só na primeira execução: depois disso vale a posição salva, seja ela do usuário
+        // arrastando com ⌘ ou da aba Ícones movendo a fronteira.
         seedPreferredPositionIfNeeded("MacTrayToggle", 0)
         seedPreferredPositionIfNeeded("MacTrayExpand", 1)
         seedPreferredPositionIfNeeded("MacTrayAlwaysHidden", 2)
+
+        // A fronteira escolhida pelo usuário vale sobre a posição semeada: o sistema apaga
+        // a chave dele ao encerrar o app, então ela é reescrita a cada arranque.
+        if let boundary = Defaults.boundaryPosition {
+            UserDefaults.standard.set(boundary, forKey: "NSStatusItem Preferred Position MacTrayExpand")
+        }
 
         toggleItem = statusBar.statusItem(withLength: NSStatusItem.squareLength)
         toggleItem.autosaveName = "MacTrayToggle"
@@ -160,21 +171,89 @@ final class TrayController: NSObject {
         updateOutsideClickMonitor()
     }
 
+    /// A bandeja aberta também conta como "aberto": é ela que a seta comanda agora.
+    private var isShowingSomething: Bool {
+        state != .collapsed || TrayPanel.shared.isOpen
+    }
+
     private func updateToggleImage() {
+        toggleItem.button?.toolTip = L10n.shared("menu.hint")
+        guard animationTimer == nil else { return } // a animação termina no quadro certo
+        toggleItem.button?.image = symbolImage(for: isShowingSomething)
+    }
+
+    /// Meia volta na seta ao clicar. Feito trocando a imagem quadro a quadro: animar a
+    /// layer do botão não aparece, porque o AppKit redesenha o item de status por cima
+    /// da animação a cada ciclo. Rodar na mão custa nada e é o que de fato se vê.
+    private var animationTimer: Timer?
+
+    private func animateToggleButton() {
+        animationTimer?.invalidate()
+        animationTimer = nil
+
+        guard Defaults.animateToggle,
+              let button = toggleItem.button,
+              let target = symbolImage(for: isShowingSomething) else { return }
+
+        let frames = 12
+        let duration = 0.3
+        var frame = 0
+
+        animationTimer = Timer.scheduledTimer(withTimeInterval: duration / Double(frames),
+                                              repeats: true) { [weak self] timer in
+            frame += 1
+            guard let self, let button = self.toggleItem.button else { timer.invalidate(); return }
+
+            if frame >= frames {
+                timer.invalidate()
+                self.animationTimer = nil
+                button.image = target
+                return
+            }
+
+            // Meia volta com desaceleração, e uma encolhida no meio do caminho.
+            let progress = Double(frame) / Double(frames)
+            let eased = 1 - pow(1 - progress, 3)
+            let angle = CGFloat((1 - eased) * .pi)
+            let scale = CGFloat(1 - 0.22 * sin(progress * .pi))
+            button.image = Self.transformed(target, rotation: angle, scale: scale)
+        }
+        // Primeiro quadro imediato: esperar o timer deixava um piscar com a imagem antiga.
+        button.image = Self.transformed(target, rotation: .pi, scale: 1)
+    }
+
+    private func symbolImage(for showing: Bool) -> NSImage? {
         let symbols = Defaults.icon.symbols
-        let name = state == .collapsed ? symbols.collapsed : symbols.expanded
+        let name = showing ? symbols.expanded : symbols.collapsed
         let config = NSImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
         let image = NSImage(systemSymbolName: name, accessibilityDescription: L10n.shared("app.name"))?
             .withSymbolConfiguration(config)
         image?.isTemplate = true
-        toggleItem.button?.image = image
-        toggleItem.button?.toolTip = L10n.shared("menu.hint")
+        return image
+    }
+
+    private static func transformed(_ image: NSImage, rotation: CGFloat, scale: CGFloat) -> NSImage {
+        let size = image.size
+        let output = NSImage(size: size)
+        output.lockFocus()
+        let transform = NSAffineTransform()
+        transform.translateX(by: size.width / 2, yBy: size.height / 2)
+        transform.rotate(byRadians: rotation)
+        transform.scale(by: scale)
+        transform.translateX(by: -size.width / 2, yBy: -size.height / 2)
+        transform.concat()
+        image.draw(at: .zero, from: NSRect(origin: .zero, size: size),
+                   operation: .sourceOver, fraction: 1)
+        output.unlockFocus()
+        output.isTemplate = true
+        return output
     }
 
     // MARK: - Acoes
 
     func toggle() {
         state = (state == .collapsed) ? .expanded : .collapsed
+        animateToggleButton()
     }
 
     func revealAll() {
@@ -224,6 +303,13 @@ final class TrayController: NSObject {
                 expand: { [weak self] in self?.state = .expanded },
                 restore: { [weak self] in self?.state = .collapsed })
         }
+        animateToggleButton()
+        updateToggleImage()
+    }
+
+    /// A bandeja também fecha sozinha (clique fora, Esc); a seta precisa saber.
+    func panelDidClose() {
+        updateToggleImage()
     }
 
     /// O diálogo do sistema sozinho não diz por que um app de barra de menus quer
@@ -284,6 +370,103 @@ final class TrayController: NSObject {
     @objc private func menuPreferences() { PreferencesWindowController.shared.show() }
     @objc private func menuAbout() { PreferencesWindowController.shared.show(tab: .about) }
     @objc private func menuQuit() { NSApp.terminate(nil) }
+
+    // MARK: - Mover a fronteira
+
+    /// A chave de posição preferida guarda a distância até a borda direita da barra, e o
+    /// sistema a relê quando o item é criado. Reposicionar os próprios itens é então uma
+    /// questão de gravar e recriar — bem mais confiável do que arrastar, que só funciona
+    /// no sentido da esquerda.
+    private func preferredPosition(forX x: CGFloat, on screen: NSScreen?) -> Double {
+        let width = (screen ?? NSScreen.main)?.frame.width ?? 1512
+        return Double(max(0, width - x))
+    }
+
+    /// Põe o separador logo à esquerda do ícone: ele e todos à direita passam a ficar na
+    /// barra. É a fronteira do app inteiro, não uma exceção para um ícone só.
+    func moveBoundary(leftOf item: MenuBarItem) {
+        let screen = toggleItem.button?.window?.screen
+        // Só o separador se move. A seta fica na ponta direita: é ela que o usuário clica,
+        // e mandá-la para o meio já a fez sumir atrás do notch uma vez.
+        let position = preferredPosition(forX: item.frame.minX - 8, on: screen)
+        Defaults.boundaryPosition = position
+        rebuildOwnItems(positions: ["MacTrayExpand": position])
+    }
+
+    /// Recria os próprios itens para que o sistema releia a posição pedida.
+    ///
+    /// A ordem aqui não é enfeite: remover um NSStatusItem apaga a chave de posição dele,
+    /// e o apagamento chega depois da remoção. Gravar antes de remover perde a escrita —
+    /// foi assim que a seta foi parar atrás do notch no primeiro teste.
+    func rebuildOwnItems(positions: [String: Double] = [:]) {
+        let previous = state
+        TrayPanel.shared.close()
+
+        statusBar.removeStatusItem(toggleItem)
+        statusBar.removeStatusItem(expandItem)
+        if let alwaysHidden = alwaysHiddenItem {
+            statusBar.removeStatusItem(alwaysHidden)
+            alwaysHiddenItem = nil
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let defaults = UserDefaults.standard
+            for (name, value) in positions {
+                defaults.set(value, forKey: "NSStatusItem Preferred Position \(name)")
+            }
+            // A seta volta sempre para a ponta direita, onde dá para clicar nela.
+            defaults.set(0.0, forKey: "NSStatusItem Preferred Position MacTrayToggle")
+            self.buildItems()
+            self.state = previous
+            self.applyState()
+        }
+    }
+
+    // MARK: - Quem fica na barra, quem fica na bandeja
+
+    var separatorFrame: CGRect { expandItem.button?.window?.frame ?? .zero }
+
+    /// Recolhido, quem está na bandeja foi empurrado para fora da tela (x negativo);
+    /// aberto, o que separa os dois grupos é a posição do separador.
+    func isPinned(_ item: MenuBarItem) -> Bool {
+        if state == .collapsed { return item.frame.minX >= 0 }
+        let boundary = separatorFrame
+        // Sem a moldura do separador não há fronteira para comparar; recolhido é o único
+        // estado em que a resposta é sempre confiável.
+        guard boundary.width > 0 else { return item.frame.minX >= 0 }
+        return item.frame.minX > boundary.minX
+    }
+
+    /// Move um ícone de um lado para o outro do separador. A barra precisa estar aberta
+    /// durante o gesto — não dá para agarrar um ícone que está fora da tela.
+    func setPinned(_ item: MenuBarItem, _ pinned: Bool,
+                   completion: @escaping (Result<Void, IconManager.Failure>) -> Void) {
+        let previous = state
+        if state == .collapsed { state = .expanded }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+            guard let self else { return }
+            let separator = self.separatorFrame
+            let finish: (Result<Void, IconManager.Failure>) -> Void = { result in
+                if previous == .collapsed {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.state = previous }
+                }
+                completion(result)
+            }
+            if pinned {
+                // Trazer um ícone para a direita da seta exigiria arrastá-lo para a
+                // direita, e o sistema só aceita o gesto para a esquerda. Mover a
+                // fronteira dá no mesmo e não depende de gesto nenhum.
+                MenuBarScanner.awaitLaidOut(item) { laidOut in
+                    self.moveBoundary(leftOf: laidOut ?? item)
+                    finish(.success(()))
+                }
+            } else {
+                IconManager.unpin(item, separator: separator, completion: finish)
+            }
+        }
+    }
 
     // MARK: - Automatismos
 
