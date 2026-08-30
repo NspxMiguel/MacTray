@@ -162,6 +162,7 @@ rewrite has to happen on the next run loop pass or it is lost.
 | Clicking the arrow opens the tray | on |
 | Animate the arrow on click | on |
 | Open at login | off |
+| Show in the Dock and in the app list | off |
 | Hide when clicking anywhere else | off |
 | Auto-hide after N seconds | off, 10 s |
 | Always-hidden area | off |
@@ -200,6 +201,16 @@ path macOS opens at login:
 /Applications/MacTray.app/Contents/MacOS/MacTray --login-item on
 ```
 
+`--dock on|off` switches the app between accessory and regular. Off — the default —
+keeps MacTray out of the Dock and the app switcher, which is what a menu bar app
+usually wants; it also keeps the app out of the system's list of running
+applications, so tools that enumerate apps never see it. Turn it on when you need
+MacTray to show up there:
+
+```bash
+/Applications/MacTray.app/Contents/MacOS/MacTray --dock on
+```
+
 ### Language
 
 Portuguese and English ship in the app. The system language decides the default, the
@@ -219,6 +230,33 @@ global *mouse* monitor, and hiding icons is just status item geometry. No Screen
 Recording at any point.
 
 Turn the panel off in Preferences and MacTray asks for nothing at all.
+
+Accessibility is granted to a *signature*, not to a path. An ad-hoc signature carries
+a fresh code hash on every build, so macOS treats each build as a different app and
+drops the approval — after every update the panel would come up empty until the
+permission was granted again. `build.sh` therefore signs with a local certificate
+when one is present, which pins the designated requirement to the certificate
+instead of the hash:
+
+```bash
+codesign -d -r- /Applications/MacTray.app
+# designated => identifier "dev.nspx.MacTray" and certificate root = H"…"
+```
+
+Creating that certificate is optional and local to the machine that builds; without
+it the build falls back to ad-hoc, which is what a Homebrew install uses.
+
+### Log
+
+MacTray writes to `~/Library/Logs/MacTray.log`: what it found at startup
+(accessibility, clickable area, boundary), every icon move, and every time it had to
+pull the arrow back into reach. `NSLog` from a sandboxless accessory app does not
+reach the unified log, and a menu bar defect only shows up on the bar of whoever is
+using it — the file is what makes that debuggable.
+
+```bash
+tail -f ~/Library/Logs/MacTray.log
+```
 
 ## Build layout
 

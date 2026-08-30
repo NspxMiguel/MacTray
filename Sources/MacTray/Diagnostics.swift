@@ -14,13 +14,25 @@ enum Diagnostics {
         let screen = NSScreen.main
         let area = MenuBarScanner.clickableArea(on: screen)
         print("área clicável da barra: x de \(Int(area.minX)) a \(Int(area.maxX))")
-        let items = MenuBarScanner.scan()
+        // Inclui os próprios ícones: quando a seta some, é justamente a moldura dela que
+        // responde se ela não foi criada ou se nasceu num x onde ninguém alcança.
+        let items = MenuBarScanner.scan(includingOwn: true)
+        let ownPID = NSRunningApplication.runningApplications(
+            withBundleIdentifier: Bundle.main.bundleIdentifier ?? "dev.nspx.MacTray")
+            .first(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier })?
+            .processIdentifier
         print("\(items.count) ícones encontrados:\n")
         for item in items {
             let clickable = MenuBarScanner.isClickable(item, on: screen)
-            print(String(format: "  %-26@ x=%7.0f w=%5.0f  %@",
+            let mark = item.ownerPID == ownPID ? "  <- MacTray" : ""
+            print(String(format: "  %-26@ x=%7.0f w=%5.0f  %@%@",
                          item.title as NSString, item.frame.minX, item.frame.width,
-                         clickable ? "na barra" : "ESCONDIDO" as NSString))
+                         clickable ? "na barra" : "ESCONDIDO" as NSString, mark as NSString))
+        }
+        if let ownPID, !items.contains(where: { $0.ownerPID == ownPID }) {
+            print("\naviso: o MacTray está rodando mas não pôs nenhum ícone na barra.")
+        } else if ownPID == nil {
+            print("\naviso: o MacTray não está rodando.")
         }
     }
 

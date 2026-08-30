@@ -11,6 +11,12 @@ final class PrefsModel: ObservableObject {
     @Published var launchAtLogin: Bool = LoginItem.isEnabled {
         didSet { LoginItem.set(launchAtLogin) }
     }
+    @Published var showInDock: Bool = Defaults.showInDock {
+        didSet {
+            Defaults.showInDock = showInDock
+            (NSApp.delegate as? AppDelegate)?.applyActivationPolicy()
+        }
+    }
     @Published var autoHideEnabled: Bool = Defaults.autoHideEnabled {
         didSet { Defaults.autoHideEnabled = autoHideEnabled; notify() }
     }
@@ -138,6 +144,7 @@ struct PreferencesView: View {
 
             Section {
                 Toggle(l10n("prefs.launchAtLogin"), isOn: $model.launchAtLogin)
+                Toggle(l10n("prefs.showInDock"), isOn: $model.showInDock)
                 Toggle(l10n("prefs.hideOnOutsideClick"), isOn: $model.hideOnOutsideClick)
                 Toggle(l10n("prefs.autoHide"), isOn: $model.autoHideEnabled)
                 if model.autoHideEnabled {

@@ -80,6 +80,7 @@ final class TrayPanel: NSObject {
         position(panel, below: anchor)
         panel.orderFrontRegardless()
         panel.makeKey()
+        Log.write("bandeja aberta: \(known.count) ícones, quadro \(panel.frame.debugDescription), visível \(panel.isVisible)")
 
         // Cada relayout do SwiftUI muda a altura; reancorar pelo topo mantém a caixa
         // colada na barra em vez de escorregar para baixo.

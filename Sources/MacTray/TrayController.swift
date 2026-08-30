@@ -35,6 +35,12 @@ final class TrayController: NSObject {
     private var autoHideTimer: Timer?
     private var outsideClickMonitor: Any?
 
+    /// Ligado enquanto o app arrasta um ícone. O gesto é feito com eventos sintéticos de
+    /// mouse, e eles chegam ao monitor global igualzinho a um clique de verdade: sem esta
+    /// trava, "esconder ao clicar fora" recolhe a barra no meio do arrasto e o ícone volta
+    /// para o esconderijo antes de o app conseguir medir se o gesto pegou.
+    static var isPerformingGesture = false
+
     private(set) var state: State = .collapsed {
         didSet { applyState() }
     }
@@ -49,7 +55,13 @@ final class TrayController: NSObject {
             name: .trayPreferencesChanged, object: nil)
         NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
-            object: nil, queue: .main) { [weak self] _ in self?.applyState() }
+            object: nil, queue: .main) { [weak self] _ in
+                // Outro monitor, outra área clicável: a seta pode ter acabado de cair
+                // atrás do notch sem que nada no app tenha mudado.
+                self?.applyState()
+                self?.reachabilityAttempts = 0
+                self?.scheduleReachabilityCheck()
+            }
     }
 
     // MARK: - Montagem
@@ -78,7 +90,8 @@ final class TrayController: NSObject {
         if let boundary = Defaults.boundaryPosition {
             let defaults = UserDefaults.standard
             defaults.set(boundary, forKey: "NSStatusItem Preferred Position MacTrayExpand")
-            defaults.set(togglePosition(for: boundary), forKey: "NSStatusItem Preferred Position MacTrayToggle")
+            defaults.set(Defaults.togglePosition ?? togglePosition(for: boundary),
+                         forKey: "NSStatusItem Preferred Position MacTrayToggle")
         }
 
         toggleItem = statusBar.statusItem(withLength: NSStatusItem.squareLength)
@@ -101,6 +114,76 @@ final class TrayController: NSObject {
 
         rebuildAlwaysHiddenItem()
         updateToggleImage()
+        scheduleReachabilityCheck()
+    }
+
+    // MARK: - A seta precisa estar ao alcance do mouse
+
+    /// Quantas correções já foram tentadas nesta rodada. Zera assim que a seta aparece.
+    private var reachabilityAttempts = 0
+
+    private func scheduleReachabilityCheck() {
+        // O layout da barra não fica pronto no mesmo ciclo em que o item é criado.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            self?.ensureToggleIsReachable()
+        }
+    }
+
+    /// `togglePosition(for:)` é uma previsão; quem monta a barra é o sistema, e numa barra
+    /// cheia ele empurra a seta para dentro do notch. Lá não há clique possível, e o app
+    /// não oferece nenhum outro gesto para voltar: sem esta conferência, o MacTray some
+    /// para sempre e só as Preferências do macOS trazem ele de volta.
+    private func ensureToggleIsReachable() {
+        guard let window = toggleItem?.button?.window else { return }
+        let area = MenuBarScanner.clickableArea(on: window.screen)
+        let frame = window.frame
+        guard frame.width > 0, area.width > 0 else { return }
+
+        // Dois pontos de folga: encostada na borda do notch, metade do ícone já some.
+        guard frame.minX < area.minX + 2 else {
+            reachabilityAttempts = 0
+            return
+        }
+
+        let defaults = UserDefaults.standard
+        let key = "NSStatusItem Preferred Position MacTrayToggle"
+
+        guard reachabilityAttempts < 1 else {
+            reachabilityAttempts = 0
+            // Última cartada: encostar no relógio. Fica fora do lugar ideal — os ícones
+            // fixados passam a ficar à esquerda dela —, mas uma seta feia e clicável vale
+            // mais do que uma seta bem colocada que ninguém alcança.
+            Log.write("a seta não coube à esquerda; encostando no relógio")
+            Defaults.togglePosition = 0
+            defaults.set(0.0, forKey: key)
+            rebuildOwnItems(positions: ["MacTrayToggle": 0])
+            return
+        }
+
+        reachabilityAttempts += 1
+        let current = defaults.double(forKey: key)
+        let deficit = Double(area.minX + 2 - frame.minX)
+        let corrected = max(0, current - deficit)
+
+        // Encostada no relógio e ainda fora do alcance: não é a seta que está no lugar
+        // errado, é a fronteira que cresceu por cima dela. Quem cede é a fronteira.
+        if corrected == current {
+            let boundary = Defaults.boundaryPosition ?? 0
+            let ceiling = Double(area.width) - 40
+            guard boundary > ceiling else {
+                Log.write("seta fora do alcance em x=\(Int(frame.minX)) e não há para onde recuar")
+                reachabilityAttempts = 0
+                return
+            }
+            Log.write("seta presa em x=\(Int(frame.minX)); recuando a fronteira de \(Int(boundary)) para \(Int(ceiling))")
+            Defaults.boundaryPosition = ceiling
+            Defaults.togglePosition = nil
+            rebuildOwnItems(positions: ["MacTrayExpand": ceiling])
+            return
+        }
+        Log.write("seta em x=\(Int(frame.minX)), fora da área clicável (começa em \(Int(area.minX))); indo de \(Int(current)) para \(Int(corrected))")
+        Defaults.togglePosition = corrected
+        rebuildOwnItems(positions: ["MacTrayToggle": corrected])
     }
 
     private func rebuildAlwaysHiddenItem() {
@@ -298,8 +381,10 @@ final class TrayController: NSObject {
             return
         }
         if TrayPanel.shared.isOpen {
+            Log.write("bandeja: fechando")
             TrayPanel.shared.close()
         } else {
+            Log.write("bandeja: abrindo, âncora \(toggleItem.button?.window?.frame.debugDescription ?? "sem janela")")
             TrayPanel.shared.open(
                 anchor: toggleItem.button,
                 expand: { [weak self] in self?.state = .expanded },
@@ -381,17 +466,31 @@ final class TrayController: NSObject {
     /// no sentido da esquerda.
     private func preferredPosition(forX x: CGFloat, on screen: NSScreen?) -> Double {
         let width = (screen ?? NSScreen.main)?.frame.width ?? 1512
-        return Double(max(0, width - x))
+        let area = MenuBarScanner.clickableArea(on: screen)
+        // Um ícone recolhido mora em x negativo, e `width - x` vira um número maior que a
+        // barra inteira. Gravado assim, ele empurra a seta junto para fora da tela e o app
+        // fica sem nenhum clique possível — foi exatamente assim que a seta sumiu.
+        let furthestLeft = area.width > 0 ? Double(width - area.minX) : Double(width)
+        return min(max(0, Double(width - x)), furthestLeft)
     }
 
     /// Põe o separador logo à esquerda do ícone: ele e todos à direita passam a ficar na
     /// barra. É a fronteira do app inteiro, não uma exceção para um ícone só.
     func moveBoundary(leftOf item: MenuBarItem) {
         let screen = toggleItem.button?.window?.screen
+        // Um ícone que está fora da tela não diz onde a fronteira deveria ficar: o x dele
+        // é o esconderijo, não o lugar dele na barra.
+        guard MenuBarScanner.isClickable(item, on: screen) else {
+            Log.write("fronteira não movida: \(item.displayName) está fora da área clicável (x=\(Int(item.frame.minX)))")
+            return
+        }
         // Só o separador se move. A seta fica na ponta direita: é ela que o usuário clica,
         // e mandá-la para o meio já a fez sumir atrás do notch uma vez.
         let position = preferredPosition(forX: item.frame.minX - 8, on: screen)
         Defaults.boundaryPosition = position
+        // Gesto deliberado: a correção antiga era para a fronteira antiga, e insistir
+        // nela prenderia a seta longe de onde o usuário acabou de pedir.
+        Defaults.togglePosition = nil
         rebuildOwnItems(positions: ["MacTrayExpand": position])
     }
 
@@ -422,7 +521,10 @@ final class TrayController: NSObject {
             alwaysHiddenItem = nil
         }
 
-        DispatchQueue.main.async { [weak self] in
+        // O apagamento da chave de posição chega DEPOIS da remoção do item, e não no ciclo
+        // seguinte do run loop: gravar em `async` era gravar cedo demais, o sistema apagava
+        // logo atrás e o app renascia sem posição nenhuma — sem seta na barra, portanto.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             guard let self else { return }
             let defaults = UserDefaults.standard
             for (name, value) in positions {
@@ -431,12 +533,32 @@ final class TrayController: NSObject {
             // A seta anda junto com o separador, logo à direita dele — antes dos ícones
             // fixados, como a setinha do Windows. Deixá-la na ponta direita punha os
             // fixados entre a seta e a bandeja, e a caixa abria por baixo deles.
-            let boundary = positions["MacTrayExpand"] ?? Defaults.boundaryPosition ?? 0
-            defaults.set(self.togglePosition(for: boundary),
-                         forKey: "NSStatusItem Preferred Position MacTrayToggle")
+            if positions["MacTrayToggle"] == nil {
+                let boundary = positions["MacTrayExpand"] ?? Defaults.boundaryPosition ?? 0
+                defaults.set(Defaults.togglePosition ?? self.togglePosition(for: boundary),
+                             forKey: "NSStatusItem Preferred Position MacTrayToggle")
+            }
             self.buildItems()
             self.state = previous
             self.applyState()
+            // Segunda gravação, agora com os itens já criados: se o apagamento tardio do
+            // sistema levou as chaves junto, é aqui que elas voltam. Sem isto o próximo
+            // arranque nasce sem posição e a seta vai parar atrás do notch.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { self.persistOwnPositions() }
+        }
+    }
+
+    /// Reescreve as chaves de posição a partir do que o app considera verdade. O sistema é
+    /// dono dessas chaves e as apaga sozinho; quem lembra da escolha do usuário é o app.
+    private func persistOwnPositions() {
+        let defaults = UserDefaults.standard
+        let boundary = Defaults.boundaryPosition
+        if let boundary {
+            defaults.set(boundary, forKey: "NSStatusItem Preferred Position MacTrayExpand")
+        }
+        let toggle = Defaults.togglePosition ?? boundary.map { togglePosition(for: $0) }
+        if let toggle {
+            defaults.set(toggle, forKey: "NSStatusItem Preferred Position MacTrayToggle")
         }
     }
 
@@ -472,12 +594,22 @@ final class TrayController: NSObject {
                 completion(result)
             }
             if pinned {
-                // Trazer um ícone para a direita da seta exigiria arrastá-lo para a
-                // direita, e o sistema só aceita o gesto para a esquerda. Mover a
-                // fronteira dá no mesmo e não depende de gesto nenhum.
-                MenuBarScanner.awaitLaidOut(item) { laidOut in
-                    self.moveBoundary(leftOf: laidOut ?? item)
-                    finish(.success(()))
+                // Arrastar o ícone para a direita da fronteira traz só ele. Mover a
+                // fronteira até ele — o que este ramo fazia sempre — arrastava junto
+                // todos os vizinhos da direita, e "deixa só o Bluetooth na barra" virava
+                // "traz o Bluetooth e mais seis". A fronteira fica de reserva: o gesto
+                // depende do ícone estar desenhado, e nem sempre está.
+                let toggle = self.toggleItem.button?.window?.frame ?? .zero
+                IconManager.pin(item, separator: separator, toggle: toggle) { result in
+                    switch result {
+                    case .success:
+                        finish(.success(()))
+                    case .failure:
+                        MenuBarScanner.awaitLaidOut(item) { laidOut in
+                            self.moveBoundary(leftOf: laidOut ?? item)
+                            finish(.success(()))
+                        }
+                    }
                 }
             } else {
                 IconManager.unpin(item, separator: separator, completion: finish)
@@ -492,6 +624,7 @@ final class TrayController: NSObject {
         autoHideTimer = nil
         guard Defaults.autoHideEnabled, state != .collapsed else { return }
         autoHideTimer = Timer.scheduledTimer(withTimeInterval: Defaults.autoHideDelay, repeats: false) { [weak self] _ in
+            guard !TrayController.isPerformingGesture else { return }
             self?.collapse()
         }
     }
@@ -503,6 +636,7 @@ final class TrayController: NSObject {
             // (so o de teclado exige) e nao ve os cliques do proprio app.
             outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
                 matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+                    guard !TrayController.isPerformingGesture else { return }
                     self?.collapse()
                 }
         } else if !wanted, let monitor = outsideClickMonitor {

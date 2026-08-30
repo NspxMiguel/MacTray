@@ -47,6 +47,7 @@ enum Defaults {
             Key.didShowOnboarding: false,
             Key.clickOpensPanel: true,
             Key.animateToggle: true,
+            Key.showInDock: false,
         ])
     }
 
@@ -64,6 +65,8 @@ enum Defaults {
         static let clickOpensPanel = "clickOpensPanel"
         static let animateToggle = "animateToggle"
         static let boundaryPosition = "boundaryPosition"
+        static let togglePosition = "togglePosition"
+        static let showInDock = "showInDock"
     }
 
     static var autoHideEnabled: Bool {
@@ -133,6 +136,29 @@ enum Defaults {
             if let newValue { d.set(newValue, forKey: Key.boundaryPosition) }
             else { d.removeObject(forKey: Key.boundaryPosition) }
         }
+    }
+
+    /// Onde a seta precisou nascer para continuar clicável, quando a conta prevista pelo
+    /// app não sobreviveu ao layout que o sistema montou. Guardado porque a correção vale
+    /// para os próximos arranques: a barra dele continua igualmente cheia amanhã.
+    static var togglePosition: Double? {
+        get {
+            guard d.object(forKey: Key.togglePosition) != nil else { return nil }
+            return d.double(forKey: Key.togglePosition)
+        }
+        set {
+            if let newValue { d.set(newValue, forKey: Key.togglePosition) }
+            else { d.removeObject(forKey: Key.togglePosition) }
+        }
+    }
+
+    /// Com isto ligado o app deixa de ser acessório e passa a ter ícone no Dock e no
+    /// alternador de janelas. Fica desligado por padrão — um app de barra de menus não
+    /// costuma querer os dois lugares —, mas é o que o torna visível para quem procura
+    /// o MacTray na lista de aplicativos do sistema.
+    static var showInDock: Bool {
+        get { d.bool(forKey: Key.showInDock) }
+        set { d.set(newValue, forKey: Key.showInDock) }
     }
 
     static var didShowOnboarding: Bool {

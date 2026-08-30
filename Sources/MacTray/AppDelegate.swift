@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Defaults.registerDefaults()
         _ = L10n.shared
+        applyActivationPolicy()
 
         let tray = TrayController()
         self.tray = tray
@@ -19,6 +20,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         observeRemoteCommands(tray: tray)
 
+        // Retrato do arranque: quando a bandeja não abre, a resposta quase sempre está
+        // nestas três linhas — sem acessibilidade não há o que ler, e sem área clicável
+        // não há onde desenhar.
+        let area = MenuBarScanner.clickableArea(on: NSScreen.main)
+        Log.write("subindo \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?") — "
+                  + "acessibilidade: \(MenuBarScanner.isAuthorized ? "sim" : "NÃO"), "
+                  + "área clicável \(Int(area.minX))–\(Int(area.maxX)), "
+                  + "fronteira \(Defaults.boundaryPosition.map { String(Int($0)) } ?? "—")")
+
         // Deixa o retrato da barra pronto antes do primeiro clique na seta.
         MenuBarScanner.refresh()
 
@@ -28,12 +38,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// O Info.plist marca LSUIElement, então o app nasce acessório: sem Dock e sem
+    /// alternador de janelas — e, de quebra, invisível para quem lista os aplicativos
+    /// instalados do sistema. Quem quiser encontrá-lo por lá liga isto.
+    func applyActivationPolicy() {
+        NSApp.setActivationPolicy(Defaults.showInDock ? .regular : .accessory)
+    }
+
     /// Comandos vindos de outro processo (o proprio binario chamado com --toggle).
     private func observeRemoteCommands(tray: TrayController) {
         let center = DistributedNotificationCenter.default()
         for command in RemoteCommand.allCases {
-            center.addObserver(forName: command.notificationName, object: nil, queue: .main) { [weak tray] note in
-                guard let tray else { return }
+            center.addObserver(forName: command.notificationName, object: nil, queue: .main) { [weak tray, weak self] note in
+                guard let tray, let self else { return }
                 switch command {
                 case .toggle: tray.toggle()
                 case .show: tray.expand()
@@ -41,6 +58,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 case .showAll: tray.revealAll()
                 case .panel: tray.togglePanel()
                 case .preferences: PreferencesWindowController.shared.show()
+                case .dock:
+                    guard let wanted = LoginItemArgument.value(note.object as? String) else { return }
+                    Defaults.showInDock = wanted
+                    self.applyActivationPolicy()
+                    Log.write("ícone no Dock \(wanted ? "ligado" : "desligado")")
                 case .pin, .unpin:
                     guard let needle = note.object as? String else { return }
                     let wanted = command == .pin
@@ -49,13 +71,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         $0.ownerName.lowercased().contains(needle.lowercased())
                             || $0.displayName.lowercased().contains(needle.lowercased())
                     }) else {
-                        NSLog("MacTray: não achei ícone de %@", needle)
+                        Log.write("--\(command.rawValue): não achei ícone de \(needle). Vejo: "
+                                  + items.map { "\($0.ownerName)/\($0.displayName)" }.joined(separator: ", "))
                         return
                     }
+                    Log.write("--\(command.rawValue) \(needle) -> \(item.title) em x=\(Int(item.frame.minX))")
                     tray.setPinned(item, wanted) { result in
                         switch result {
-                        case .success: NSLog("MacTray: %@ agora está %@", item.displayName, wanted ? "na barra" : "na bandeja")
-                        case .failure(let error): NSLog("MacTray: não deu para mover %@ (%@)", item.displayName, "\(error)")
+                        case .success: Log.write("\(item.displayName) agora está \(wanted ? "na barra" : "na bandeja")")
+                        case .failure(let error): Log.write("não deu para mover \(item.displayName): \(error)")
                         }
                     }
                 }
@@ -88,4 +112,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool { true }
+
+    /// Com ícone no Dock, clicar nele não tem janela para trazer de volta: abre as
+    /// Preferências, que é a única janela que o app tem.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { PreferencesWindowController.shared.show() }
+        return true
+    }
 }

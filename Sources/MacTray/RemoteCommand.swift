@@ -10,6 +10,7 @@ enum RemoteCommand: String, CaseIterable {
     case preferences
     case pin
     case unpin
+    case dock
 
     var notificationName: Notification.Name {
         Notification.Name("dev.nspx.MacTray.\(rawValue)")
@@ -30,11 +31,13 @@ enum RemoteCommand: String, CaseIterable {
             command.notificationName, object: argument, userInfo: nil, deliverImmediately: true)
     }
 
-    /// `--pin Docker` e `--unpin Docker` levam o nome do app junto.
+    /// Comandos que levam um argumento junto: `--pin Docker`, `--dock on`.
+    private static let takesArgument: Set<RemoteCommand> = [.pin, .unpin, .dock]
+
     static func withArgument(_ arguments: [String]) -> (RemoteCommand, String)? {
         for (index, argument) in arguments.enumerated() where argument.hasPrefix("--") {
             guard let command = RemoteCommand(rawValue: String(argument.dropFirst(2))),
-                  command == .pin || command == .unpin,
+                  takesArgument.contains(command),
                   index + 1 < arguments.count else { continue }
             return (command, arguments[index + 1])
         }
@@ -52,7 +55,12 @@ enum LoginItemArgument {
     static func fromArguments(_ arguments: [String]) -> Bool? {
         guard let index = arguments.firstIndex(of: "--login-item"),
               index + 1 < arguments.count else { return nil }
-        switch arguments[index + 1].lowercased() {
+        return value(arguments[index + 1])
+    }
+
+    /// `on` / `off` e os sinônimos que a gente sempre acaba digitando.
+    static func value(_ text: String?) -> Bool? {
+        switch text?.lowercased() {
         case "on", "true", "1", "yes": return true
         case "off", "false", "0", "no": return false
         default: return nil

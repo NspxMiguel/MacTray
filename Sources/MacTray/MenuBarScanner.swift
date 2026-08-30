@@ -110,12 +110,16 @@ enum MenuBarScanner {
     private static var lastFullScan: Date = .distantPast
     private static let fullScanInterval: TimeInterval = 20
 
-    static func scan() -> [MenuBarItem] {
+    /// `includingOwn` existe para o diagnostico: a bandeja nunca deve mostrar os proprios
+    /// icones, mas quem esta depurando precisa justamente saber onde a seta foi parar.
+    static func scan(includingOwn: Bool = false) -> [MenuBarItem] {
         guard isAuthorized else { return [] }
         let now = Date()
         let owners: [NSRunningApplication]
 
-        if !knownOwners.isEmpty, now.timeIntervalSince(lastFullScan) < fullScanInterval {
+        if includingOwn {
+            owners = candidateApps(includingOwn: true)
+        } else if !knownOwners.isEmpty, now.timeIntervalSince(lastFullScan) < fullScanInterval {
             owners = knownOwners.compactMap { NSRunningApplication(processIdentifier: $0) }
         } else {
             lastFullScan = now
@@ -124,14 +128,17 @@ enum MenuBarScanner {
 
         let found = read(from: owners)
         let ownersWithItems = Set(found.map(\.ownerPID))
-        if !ownersWithItems.isEmpty { knownOwners = Array(ownersWithItems) }
+        // O caminho rapido nao pode herdar a lista do diagnostico: ela inclui o proprio
+        // app, e a bandeja passaria a listar a propria seta.
+        if !includingOwn, !ownersWithItems.isEmpty { knownOwners = Array(ownersWithItems) }
         return found.sorted { $0.frame.minX < $1.frame.minX }
     }
 
-    private static func candidateApps() -> [NSRunningApplication] {
+    private static func candidateApps(includingOwn: Bool = false) -> [NSRunningApplication] {
         let ownBundleID = Bundle.main.bundleIdentifier ?? "dev.nspx.MacTray"
         return NSWorkspace.shared.runningApplications.filter {
-            $0.bundleIdentifier != ownBundleID && $0.activationPolicy != .prohibited
+            ($0.bundleIdentifier != ownBundleID || includingOwn)
+                && $0.activationPolicy != .prohibited
         }
     }
 

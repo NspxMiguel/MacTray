@@ -44,7 +44,22 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "==> Signing (ad-hoc)"
-codesign --force --deep --sign - "$APP"
+# Assinatura ad-hoc muda o cdhash a cada build, e o requisito designado do app é
+# justamente esse hash: o macOS trata cada build como um app diferente e joga fora a
+# permissão de Acessibilidade — sem a qual a bandeja não lê a barra de menus. Com um
+# certificado local o requisito passa a ser o certificado, que não muda, e a permissão
+# concedida uma vez sobrevive às próximas versões.
+#
+# Quem instala pelo Homebrew não tem esse certificado, e não deve mesmo: ali o ad-hoc
+# continua valendo, e a permissão é concedida na instalação como sempre foi.
+SIGN_ID="NSPX Local Code Signing"
+SIGN_KEYCHAIN="$HOME/Library/Keychains/nspx-codesign.keychain-db"
+if [ -f "$SIGN_KEYCHAIN" ] && security find-identity -p codesigning "$SIGN_KEYCHAIN" 2>/dev/null | grep -q "$SIGN_ID"; then
+    echo "==> Signing with $SIGN_ID"
+    codesign --force --deep --sign "$SIGN_ID" --keychain "$SIGN_KEYCHAIN" "$APP"
+else
+    echo "==> Signing (ad-hoc)"
+    codesign --force --deep --sign - "$APP"
+fi
 
 echo "==> Done: $APP ($VERSION)"
