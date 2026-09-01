@@ -276,3 +276,7 @@ tail -f ~/Library/Logs/MacTray.log
 ## License
 
 MIT.
+
+## Documentação
+
+Índice: [`docs/INDEX.md`](docs/INDEX.md)
