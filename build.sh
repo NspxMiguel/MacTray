@@ -54,10 +54,20 @@ PLIST
 # continua valendo, e a permissão é concedida na instalação como sempre foi.
 SIGN_ID="NSPX Local Code Signing"
 SIGN_KEYCHAIN="$HOME/Library/Keychains/nspx-codesign.keychain-db"
+signed_locally=false
 if [ -f "$SIGN_KEYCHAIN" ] && security find-identity -p codesigning "$SIGN_KEYCHAIN" 2>/dev/null | grep -q "$SIGN_ID"; then
     echo "==> Signing with $SIGN_ID"
-    codesign --force --deep --sign "$SIGN_ID" --keychain "$SIGN_KEYCHAIN" "$APP"
-else
+    # A identidade pode existir na listagem e ainda assim não ser aceita pelo codesign
+    # de verdade (chaveiro sem confiança marcada pra assinatura de código, por exemplo)
+    # — por isso o fallback é testado aqui, não só na listagem acima. Foi exatamente
+    # isso que quebrou o build em 11/09/2026.
+    if codesign --force --deep --sign "$SIGN_ID" --keychain "$SIGN_KEYCHAIN" "$APP" 2>/tmp/mactray-codesign.log; then
+        signed_locally=true
+    else
+        echo "==> Identidade local recusada pelo codesign ($(cat /tmp/mactray-codesign.log | tail -1)), caindo pro ad-hoc"
+    fi
+fi
+if [ "$signed_locally" = false ]; then
     echo "==> Signing (ad-hoc)"
     codesign --force --deep --sign - "$APP"
 fi
